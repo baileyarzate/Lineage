@@ -1,221 +1,225 @@
-<div id="vscodium-logo" align="center">
-   <br />
-   <img src="./icons/stable/codium_cnl.svg" alt="VSCodium Logo" width="200"/>
-   <h1>VSCodium</h1>
-   <h3>Free/Libre Open Source Software Binaries of Visual Studio Code</h3>
+<div align="center">
+
+<img src="lineage/docs/logo.svg" alt="Lineage logo" width="120" />
+
+# Lineage
+
+### Show how the code got written.
+
+**Lineage is a code editor for computer science courses. It records where every line of an assignment came from (typed, pasted, or written by an AI agent), so honest students can prove their work is theirs and instructors can see what didn't come from the student.**
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-2f7d5b.svg)](LICENSE)
+[![Built on VSCodium](https://img.shields.io/badge/built%20on-VSCodium-2f6b58.svg)](https://github.com/VSCodium/vscodium)
+[![Node 24+](https://img.shields.io/badge/node-24%2B-5f7186.svg)](https://nodejs.org)
+[![Status: prototype](https://img.shields.io/badge/status-prototype-d18a22.svg)](#roadmap)
+
+[**See it in 30 seconds**](#try-the-demo-in-one-command) · [How it works](#how-it-works) · [What it catches](#what-it-catches-and-what-it-doesnt) · [Privacy](#privacy-by-design)
+
+<br />
+
+<img src="lineage/docs/replay.gif" alt="Replay of a student's history: some typing, then Codex CLI is started in Lineage's terminal and three files appear at once, marked in red" width="100%" />
+
+<sub>A real replay from the demo: the student types a little (green), then an AI agent started in Lineage's terminal writes three files at once (red).</sub>
+
 </div>
 
-<div id="badges" align="center">
+---
 
-[![current release](https://img.shields.io/github/release/vscodium/vscodium.svg)](https://github.com/vscodium/vscodium/releases)
-[![license](https://img.shields.io/github/license/VSCodium/vscodium.svg)](https://github.com/VSCodium/vscodium/blob/master/LICENSE)
-[![Gitter](https://img.shields.io/gitter/room/vscodium/vscodium.svg)](https://gitter.im/VSCodium/Lobby)
-[![codium](https://snapcraft.io//codium/badge.svg)](https://snapcraft.io/codium)
-[![codium](https://snapcraft.io//codium/trending.svg?name=0)](https://snapcraft.io/codium)
+## The problem
 
-</div>
+An AI agent can finish a CS assignment in two minutes. Every existing answer to that has a serious drawback:
 
-**This is not a fork. This is a repository of scripts to automatically build [Microsoft's `vscode` repository](https://github.com/microsoft/vscode) into freely-licensed binaries with a community-driven default configuration.**
+| Current approach | Drawback |
+|---|---|
+| **Plagiarism checkers** (MOSS and similar) | They compare students with each other. Freshly generated AI code matches no one. |
+| **AI text detectors** | They guess from the finished code, and they falsely accuse real students. |
+| **Webcam proctoring** | It's invasive, students hate it, and it doesn't work for take-home projects. |
+| **Banning AI in the syllabus** | Without evidence it can't be enforced, and honest students can't prove anything either. |
 
-## Table of Contents
+All of these look at the **finished code**. Lineage looks at **how the code was written**.
 
-- [Download/Install](#download-install)
-   - [Install with Brew](#install-with-brew)
-   - [Install with Windows Package Manager (WinGet)](#install-with-winget)
-   - [Install with Chocolatey](#install-with-choco)
-   - [Install with Scoop](#install-with-scoop)
-   - [Install with snap](#install-with-snap)
-   - [Install with Package Manager](#install-with-package-manager)
-   - [Install on Arch Linux](#install-on-arch-linux)
-   - [Flatpak Option](#flatpak)
-- [Build](#build)
-- [Why Does This Exist](#why)
-- [More Info](#more-info)
-- [Supported Platforms](#supported-platforms)
-- [Previously Supported Platforms](#previously-supported-platforms)
-
-## <a id="download-install"></a>Download/Install
-
-:tada: :tada:
-Download latest release here:
-[stable](https://github.com/VSCodium/vscodium/releases) or
-[insiders](https://github.com/VSCodium/vscodium-insiders/releases)
-:tada: :tada:
-
-[More info / helpful tips are here.](https://github.com/VSCodium/vscodium/blob/master/docs/index.md)
-
-
-#### <a id="install-with-brew"></a>Install with Brew (Mac)
-
-If you are on a Mac and have [Homebrew](https://brew.sh/) installed:
-```bash
-# stable
-brew install --cask vscodium
-
-# insiders
-brew install --cask vscodium@insiders
-```
-
-#### <a id="install-with-winget"></a>Install with Windows Package Manager (WinGet)
-
-If you use Windows and have [Windows Package Manager](https://github.com/microsoft/winget-cli) installed:
-```cmd
-:: stable
-winget install -e --id VSCodium.VSCodium
-
-:: insider
-winget install -e --id VSCodium.VSCodium.Insiders
-```
-
-#### <a id="install-with-choco"></a>Install with Chocolatey (Windows)
-
-If you use Windows and have [Chocolatey](https://chocolatey.org) installed (thanks to [@Thilas](https://github.com/Thilas)):
-```cmd
-:: stable
-choco install vscodium
-
-:: insider
-choco install vscodium-insiders
-```
-
-#### <a id="install-with-scoop"></a>Install with Scoop (Windows)
-
-If you use Windows and have [Scoop](https://scoop.sh) installed:
-```bash
-scoop bucket add extras
-scoop install vscodium
-```
-
-#### <a id="install-with-snap"></a>Install with snap (GNU/Linux)
-
-VSCodium is available in the [Snap Store](https://snapcraft.io/) as [Codium](https://snapcraft.io/codium), thanks to the help of the [Snapcrafters](https://github.com/snapcrafters/codium) community.
-If your GNU/Linux distribution has support for [snaps](https://snapcraft.io/docs/installing-snapd):
-
-```bash
-snap install codium --classic
-```
-
-#### <a id="install-with-package-manager"></a>Install with Package Manager (GNU/Linux)
-
-You can always install using the downloads (deb, rpm, tar) on the releases page for [stable](https://github.com/VSCodium/vscodium/releases) or [insiders](https://github.com/VSCodium/vscodium-insiders/releases), but you can also install using your favorite package manager and get automatic updates.
-
-[@paulcarroty](https://github.com/paulcarroty) has set up a repository with instructions for `apt`, `dnf` and `zypper` [here](https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo).
-
-Any issues installing VSCodium using your package manager should be directed to that repository's issue tracker.
-
-#### <a id="install-on-arch-linux"></a>Install on Arch Linux
-
-VSCodium is available in [AUR](https://wiki.archlinux.org/index.php/Arch_User_Repository), maintained by [@binex-dsk](https://github.com/binex-dsk) as package [vscodium-bin](https://aur.archlinux.org/packages/vscodium-bin/) (stable) and as [vscodium-insiders-bin](https://aur.archlinux.org/packages/vscodium-insiders-bin).
-
-If you want to save disk space by having VSCodium use the Electron system-wide, you also have [vscodium-electron](https://aur.archlinux.org/packages/vscodium-electron),
-maintained by [@m00nw4tch3r](https://aur.archlinux.org/account/m00nw4tch3r).
-
-An alternative package [vscodium-git](https://aur.archlinux.org/packages/vscodium-git/), maintained by [@cedricroijakkers](https://github.com/cedricroijakkers), is also available should you wish to compile from source yourself.
-
-#### <a id="flatpak"></a>Flatpak Option (GNU/Linux)
-
-VSCodium is available as a Flatpak app [here](https://flathub.org/apps/details/com.vscodium.codium) and the build repo is [here](https://github.com/flathub/com.vscodium.codium).
-If your distribution has support for [flatpak](https://flathub.org), and you have enabled the [flathub repo](https://flatpak.org/setup/):
-
-```bash
-flatpak install flathub com.vscodium.codium
-flatpak run com.vscodium.codium
-```
-
-## <a id="build"></a>Build
-
-Build instructions can be found [here](https://github.com/VSCodium/vscodium/blob/master/docs/howto-build.md)
-
-## <a id="why"></a>Why Does This Exist
-
-This repository contains build files to generate free release binaries of Microsoft's Visual Studio Code. When we speak of "free software", we're talking about freedom, not price.
-
-Microsoft's releases of Visual Studio Code are licensed under [this not-FLOSS license](https://code.visualstudio.com/license) and contain telemetry/tracking. According to [this comment](https://github.com/Microsoft/vscode/issues/60#issuecomment-161792005) from a Visual Studio Code maintainer:
-
-> When we [Microsoft] build Visual Studio Code, we do exactly this. We clone the vscode repository, we lay down a customized product.json that has Microsoft specific functionality (telemetry, gallery, logo, etc.), and then produce a build that we release under our license.
->
-> When you clone and build from the vscode repo, none of these endpoints are configured in the default product.json. Therefore, you generate a "clean" build, without the Microsoft customizations, which is by default licensed under the MIT license
-
-This repo exists so that you don't have to download+build from source. The build scripts in this repo clone Microsoft's vscode repo, run the build commands, and upload the resulting binaries to [GitHub releases](https://github.com/VSCodium/vscodium/releases). __These binaries are licensed under the MIT license. Telemetry is disabled.__
-
-If you want to build from source yourself, head over to [Microsoft's vscode repo](https://github.com/Microsoft/vscode) and follow their [instructions](https://github.com/Microsoft/vscode/wiki/How-to-Contribute#build-and-run). This repo exists to make it easier to get the latest version of MIT-licensed Visual Studio Code.
-
-Microsoft's build process (which we are running to build the binaries) does download additional files. Those packages downloaded during build are:
-
-- Pre-built extensions from the GitHub:
-   - [ms-vscode.js-debug-companion](https://github.com/microsoft/vscode-js-debug-companion)
-   - [ms-vscode.js-debug](https://github.com/microsoft/vscode-js-debug)
-   - [ms-vscode.vscode-js-profile-table](https://github.com/microsoft/vscode-js-profile-visualizer)
-- From [Electron releases](https://github.com/electron/electron/releases) (using [gulp-atom-electron](https://github.com/joaomoreno/gulp-atom-electron))
-   - electron
-   - ffmpeg
-
-## <a id="more-info"></a>More Info
-
-### Documentation
-
-For more information on getting all the telemetry disabled, tips for migrating from Visual Studio Code to VSCodium and more, have a look at [the Docs page](https://github.com/VSCodium/vscodium/blob/master/docs/index.md) page.
-
-### Troubleshooting
-
-If you have any issue, please check [the Troubleshooting page](https://github.com/VSCodium/vscodium/blob/master/docs/troubleshooting.md) or the existing issues.
-
-### Extensions and the Marketplace
-
-According to the Visual Studio Marketplace [Terms of Use](https://aka.ms/vsmarketplace-ToU), _you may only install and use Marketplace Offerings with Visual Studio Products and Services._ For this reason, VSCodium uses [open-vsx.org](https://open-vsx.org/), an open source registry for Visual Studio Code extensions. See the [Extensions + Marketplace](https://github.com/VSCodium/vscodium/blob/master/docs/index.md#extensions-marketplace) section on the Docs page for more details.
-
-Please note that some Visual Studio Code extensions have licenses that restrict their use to the official Visual Studio Code builds and therefore do not work with VSCodium. See [this note](https://github.com/VSCodium/vscodium/blob/master/docs/extensions.md#proprietary-debugging-tools) on the Docs page for what's been found so far and possible workarounds.
-
-### How are the VSCodium binaries built?
-
-If you would like to see the commands we run to build `vscode` into VSCodium binaries, have a look at the workflow files in `.github/workflows` for Windows, GNU/Linux and macOS. These build files call all the other scripts in the repo. If you find something that doesn't make sense, feel free to ask about it [on Gitter](https://gitter.im/VSCodium/Lobby).
-
-The builds are run every day, but exit early if there isn't a new release from Microsoft.
-
-## <a id="supported-platforms"></a>Supported Platforms
-
-The minimal version is limited by the core component Electron, you may want to check its [platform prerequisites](https://www.electronjs.org/docs/latest/development/build-instructions-gn#platform-prerequisites).
-
-- [x] macOS (`zip`, `dmg`) macOS 12 or newer x64
-- [x] macOS (`zip`, `dmg`) macOS 12 or newer arm64
-- [x] GNU/Linux x64 (`deb`, `rpm`, `AppImage`, `snap`, `tar.gz`)
-- [x] GNU/Linux arm64 (`deb`, `rpm`, `snap`, `tar.gz`)
-- [x] GNU/Linux riscv64 (`tar.gz`)
-- [x] GNU/Linux loong64 (`tar.gz`)
-- [x] GNU/Linux ppc64le (`tar.gz`)
-- [x] Windows 10 / Server 2012 R2 or newer x64
-- [x] Windows 10 / Server 2012 R2 or newer arm64
-
-## <a id="previously-supported-platforms"></a>Previously Supported Platforms
-
-- Windows 32bits:
-   - Latest available: [v1.83.1.23285](https://github.com/VSCodium/vscodium/releases/tag/1.83.1.23285).
-
-## <a id="thanks"></a>Special thanks
+## What Lineage does
 
 <table>
-   <tr>
-      <td><a href="https://github.com/jaredreich" target="_blank">@jaredreich</a></td>
-      <td>for the logo</td>
-   </tr>
-   <tr>
-      <td><a href="https://github.com/PalinuroSec" target="_blank">@PalinuroSec</a></td>
-      <td>for CDN and domain name</td>
-   </tr>
-   <tr>
-      <td><a href="https://www.macstadium.com" target="_blank"><img src="https://images.prismic.io/macstadium/66fbce64-707e-41f3-b547-241908884716_MacStadium_Logo.png?w=128&q=75" width="128" height="49" alt="MacStadium logo" /></a></td>
-      <td>for providing a Mac mini M1</td>
-   </tr>
-   <tr>
-      <td><a href="https://github.com/daiyam" target="_blank">@daiyam</a></td>
-      <td>for macOS certificate</td>
-   </tr>
-   <tr>
-      <td><a href="https://signpath.org/" target="_blank"><img src="https://avatars.githubusercontent.com/u/34448643" height="30" alt="SignPath logo" /></a></td>
-      <td>free code signing on Windows provided by <a href="https://signpath.io/" target="_blank">SignPath.io</a>, certificate by <a href="https://signpath.org/" target="_blank">SignPath Foundation</a></td>
-   </tr>
+<tr>
+<td width="33%" valign="top">
+
+### Records where code came from
+Every change to the assignment is labeled at the moment it happens: **typed**, **pasted from inside the editor**, **pasted from outside**, **written to disk by another program**, or **changed while Lineage was closed**.
+
+</td>
+<td width="33%" valign="top">
+
+### Private and tamper-evident
+Events form a **SHA-256 hash chain** and are **encrypted on the student's machine** for the course server. Students can't read or change their own recording, and deleted batches show up as alerts.
+
+</td>
+<td width="33%" valign="top">
+
+### Gives evidence, not verdicts
+The server replays the history to rebuild each file character by character, then reports **how much was written in Lineage** along with factual flags. A person decides what it means.
+
+</td>
+</tr>
 </table>
 
-## <a id="license"></a>License
+<div align="center">
+<img src="lineage/docs/student-agent.png" alt="Student review page for an agent user: 2.1% written in Lineage, four alerts, a timeline with a pink band where Codex CLI was running, and files colored red" width="100%" />
+<sub>An agent user: 2.1% written in Lineage. The pink band shows when Codex CLI was running in Lineage's terminal, and red marks code written to disk by another program.</sub>
+</div>
 
-[MIT](https://github.com/VSCodium/vscodium/blob/master/LICENSE)
+## Built for instructors
+
+A dashboard designed for how instructors actually work: **courses, then assignments, then a review queue, then the evidence**.
+
+<table>
+<tr>
+<td width="50%"><img src="lineage/docs/courses.png" alt="Courses page with assignment cards showing how many students need review" /></td>
+<td width="50%"><img src="lineage/docs/review-queue.png" alt="Assignment review queue: two students flagged, sortable by percentage written in Lineage" /></td>
+</tr>
+<tr>
+<td><b>Courses.</b> See which assignments have students waiting for review.</td>
+<td><b>Review queue.</b> Only flagged students by default. Mark each one <i>Clear</i> or <i>Follow up</i> and the queue shrinks.</td>
+</tr>
+</table>
+
+On each student's page:
+
+- **Two-level timeline.** The top strip summarizes the whole history (thousands of events) and marks every paste and agent write. Drag it to scroll fast, and use the zoomed strip below for single steps.
+- **Replay frame by frame** with `←` `→`, or play it back at the student's own pace.
+- **File tree for the whole project**, with each file colored by where its code came from. Untouched starter files are dimmed.
+- **Code view with a minimap** that shows where in a file the code that wasn't written in Lineage is.
+- **Flags link to the exact moment**, and private notes are saved per student.
+- **Move through the queue** with `[` `]` without going back to the list.
+
+<div align="center">
+<img src="lineage/docs/student-honest.png" alt="Student review page for an honest student: 100% written in Lineage across three sessions, no flags" width="100%" />
+<sub>An honest student: 100% written in Lineage across three sessions over six days, with no flags. The same evidence protects students from false accusations.</sub>
+</div>
+
+## How it works
+
+```mermaid
+flowchart LR
+    subgraph Student["Student's computer"]
+        E["Lineage editor<br/>(VSCodium build)"] --> R["Recorder extension<br/>labels every change"]
+        R --> C["Hash chain<br/>SHA-256"]
+        C --> X["Encrypt<br/>AES-256-GCM + RSA-OAEP"]
+        X --> Q[("Encrypted spool<br/>works offline")]
+    end
+    subgraph Server["Course server"]
+        V["Verify chain<br/>detect gaps"] --> P["Replay history<br/>attribute every character"]
+        P --> F["Compare with submission<br/>raise factual flags"]
+        F --> D["Instructor dashboard"]
+    end
+    Q -- "upload when online" --> V
+```
+
+1. The instructor puts a `.lineage.json` in the starter repo. Students open the project in Lineage and join with a code.
+2. The recorder labels each change by where it came from. For example, agents like Claude Code write files straight to disk, so their code arrives as *written to disk by another program*, never as typing.
+3. Events are chained and encrypted before they leave the student's machine. Only the course server can read them.
+4. The server replays everything, checks the result against the submission, and shows the evidence to the instructor.
+
+## What it catches, and what it doesn't
+
+Lineage is honest about its limits; that's what makes its evidence hold up.
+
+| Scenario | Result |
+|---|---|
+| Agent (Claude Code, Codex, Aider, …) edits the project files | ✅ **Caught.** Code shows as *written to disk by another program*. |
+| Agent started from Lineage's terminal | ✅ **Caught.** Logged with how long it ran. |
+| Agent history folder exists for this project | ✅ **Caught.** Found by exact path, without reading it. |
+| Code pasted from ChatGPT, a website or a friend | ✅ **Caught.** Logged as *pasted from outside*, with the exact text. |
+| Files changed while Lineage was closed | ✅ **Caught.** Logged as *changed while closed*. |
+| Student edits or deletes their recording | ✅ **Caught.** Hash chain breaks, or an alert names the missing events. |
+| Student retypes AI output by hand from another screen | ❌ **Not caught, on purpose.** That's transcription. Pair Lineage with a 5-minute "walk me through this" conversation; the replay shows you exactly what to ask about. |
+
+## Privacy by design
+
+Lineage only records facts about **this project, inside this editor**.
+
+- ✅ Edits to project files and where they came from
+- ✅ AI agents started from Lineage's own terminal
+- ✅ Agent traces for this project, checked by **exact path only**: never listing folders, never reading contents
+- ❌ No process monitoring, no screen capture, no camera, no microphone, no OS-level monitoring
+- ❌ No typing-rhythm or other behavioral profiling
+
+Recordings are encrypted for the instructor's server, so **students can't read their own replay**, and flags never appear on the student's machine. The student is told what Lineage records, not what it found.
+
+## Try the demo in one command
+
+You need [Node.js 24+](https://nodejs.org). Nothing else to install.
+
+```sh
+git clone https://github.com/baileyarzate/Lineage.git
+cd Lineage/lineage/server
+npm run demo
+```
+
+Open the dashboard link it prints. The demo has **2 courses, 3 assignments, 39 students and about 42,000 events**, including honest students, a last-night crammer, a student who pastes from the web, and AI agent users.
+
+### Try recording yourself
+
+```sh
+# Terminal 1: server
+cd lineage/server
+npm run create-assignment -- demo-hw     # prints a join code
+npm start                                # prints the dashboard link
+
+# Terminal 2: recorder extension
+cd lineage/recorder
+npm install && npm run compile
+code .                                   # then press F5
+```
+
+A window opens on [`lineage/sample-assignment`](lineage/sample-assignment). Join with any student ID and the code, type a solution, then try `echo "x = 1" >> main.py` in a terminal or run an agent there. Run **Lineage: Submit Assignment** and open the dashboard. Full details are in [lineage/README.md](lineage/README.md).
+
+### Set up a real course
+
+```sh
+npm run create-course -- cs101 "CS 101 · Intro to Programming"
+npm run create-assignment -- cs101-hw3 --course cs101 --title "HW3 · Text statistics" --due 2026-12-01
+```
+
+Then add the printed `.lineage.json` to the starter repo.
+
+## Repository layout
+
+| Path | What's there |
+|---|---|
+| [`lineage/server`](lineage/server) | Course server, review dashboard, replay engine and demo data generator. Node 24 with no dependencies (built-in `node:sqlite`). |
+| [`lineage/recorder`](lineage/recorder) | Editor extension that labels changes, notices agents, and handles the hash chain, encryption and offline spool. |
+| [`lineage/sample-assignment`](lineage/sample-assignment) | A starter project to try it on. |
+| Everything else | The [VSCodium](https://github.com/VSCodium/vscodium) build scripts, rebranded so the desktop app is called **Lineage** (`lineage` command, `com.lineage` bundle ID). |
+
+### Build the desktop app
+
+```sh
+SHOULD_BUILD_CLI=no ./dev/build.sh      # skip the Rust CLI if Rust isn't installed
+```
+
+See [docs/howto-build.md](docs/howto-build.md) for requirements. The output is `VSCode-darwin-<arch>/Lineage.app` on macOS.
+
+### Tests
+
+```sh
+cd lineage/server && npm test
+```
+
+## Roadmap
+
+- [x] Change labeling, hash chain, encryption, offline spool
+- [x] Server replay, coverage report, submission matching, gap detection
+- [x] Instructor dashboard: courses, review queue, timeline, file tree, minimap
+- [x] Detecting AI agents without monitoring the computer
+- [ ] Bundle the recorder into the Lineage build so it's always on
+- [ ] Block AI extensions and built-in chat in the build (extension allowlist)
+- [ ] Check the graded git commit against the recording
+- [ ] HTTPS, instructor accounts, hosted deployment
+- [ ] Integration with GitHub Classroom and LMS platforms
+
+## Credits
+
+Lineage's desktop app is built on [VSCodium](https://github.com/VSCodium/vscodium), which builds Microsoft's open-source [`vscode`](https://github.com/microsoft/vscode) without its telemetry. VSCodium's original README is kept in [docs/vscodium-README.md](docs/vscodium-README.md). Lineage isn't affiliated with Microsoft or VSCodium.
+
+Released under the [MIT License](LICENSE).

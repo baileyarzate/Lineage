@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Lineage logo">
+  <rect width="160" height="160" rx="36" fill="#1c1e1b"/>
+  <g fill="none" stroke-linecap="round" stroke-width="9">
+    <path d="M52 128 V36" stroke="#7cc3a5"/>
+    <path d="M52 100 C52 82 108 86 108 64 V44" stroke="#2f7d5b"/>
+    <path d="M52 72 C52 60 84 62 84 48" stroke="#6fae8f"/>
+  </g>
+  <circle cx="52" cy="128" r="11" fill="#7cc3a5"/>
+  <circle cx="52" cy="36" r="9" fill="#e8e8e3"/>
+  <circle cx="108" cy="40" r="9" fill="#e8e8e3"/>
+  <circle cx="84" cy="44" r="7" fill="#e8e8e3"/>
+  <circle cx="122" cy="118" r="10" fill="#c4452f"/>
+</svg>
