@@ -1,0 +1,71 @@
+{
+  "name": "lineage-recorder",
+  "displayName": "Lineage Recorder",
+  "description": "Records how assignment code is written so students can prove authorship.",
+  "version": "0.1.0",
+  "publisher": "lineage",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:.lineage.json"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "lineage.join",
+        "title": "Join Assignment",
+        "category": "Lineage"
+      },
+      {
+        "command": "lineage.submit",
+        "title": "Submit Assignment",
+        "category": "Lineage"
+      },
+      {
+        "command": "lineage.status",
+        "title": "Show Recording Status",
+        "category": "Lineage"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "lineage.paste",
+        "key": "ctrl+v",
+        "mac": "cmd+v",
+        "when": "editorTextFocus && !editorReadonly"
+      },
+      {
+        "command": "lineage.paste",
+        "key": "shift+insert",
+        "when": "editorTextFocus && !editorReadonly && !isMac"
+      },
+      {
+        "command": "lineage.copy",
+        "key": "ctrl+c",
+        "mac": "cmd+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "lineage.cut",
+        "key": "ctrl+x",
+        "mac": "cmd+x",
+        "when": "editorTextFocus && !editorReadonly"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p ."
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "~1.95.0",
+    "typescript": "~5.6.3"
+  }
+}

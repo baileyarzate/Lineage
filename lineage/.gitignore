@@ -1,0 +1,4 @@
+node_modules/
+recorder/out/
+server/data/
+server/data-demo/
