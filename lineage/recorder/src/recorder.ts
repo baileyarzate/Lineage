@@ -39,6 +39,7 @@ export class Recorder implements vscode.Disposable {
 	private lastActivityAt = 0;
 	private pendingPaste: { text: string; internal: boolean; at: number } | undefined;
 	private copied = new Set<string>(); // hashes of text copied inside the editor
+	private queue: Promise<void> = Promise.resolve();
 
 	constructor(root: vscode.Uri, transport: Transport) {
 		this.root = root;
@@ -145,8 +146,10 @@ export class Recorder implements vscode.Disposable {
 				const rel = this.rel(doc.uri);
 				if (!rel || !this.shadow.has(rel)) return;
 				const text = doc.getText();
-				this.shadow.set(rel, text);
-				this.transport.record({ kind: 'save', file: rel, sha256: hash(text) });
+				this.serial(() => {
+					this.shadow.set(rel, text);
+					this.transport.record({ kind: 'save', file: rel, sha256: hash(text) });
+				});
 			}),
 			vscode.workspace.onWillRenameFiles((e) => {
 				// Move shadow entries now, so the watcher sees the renamed file as already known.
@@ -174,7 +177,7 @@ export class Recorder implements vscode.Disposable {
 			watcher,
 			watcher.onDidCreate((uri) => this.onDiskChange(uri)),
 			watcher.onDidChange((uri) => this.onDiskChange(uri)),
-			watcher.onDidDelete((uri) => {
+			watcher.onDidDelete((uri) => this.serial(() => {
 				const rel = this.rel(uri);
 				if (!rel) return;
 				for (const path of [...this.shadow.keys()]) {
@@ -183,33 +186,38 @@ export class Recorder implements vscode.Disposable {
 						this.transport.record({ kind: 'external_write', file: path, deleted: true });
 					}
 				}
-			}),
+			})),
 		);
+	}
+
+	/** Runs handlers one at a time, in arrival order, so the event stream matches what happened. */
+	private serial(fn: () => void | Promise<void>) {
+		this.queue = this.queue.then(fn).catch((err) => console.error('lineage recorder:', err));
 	}
 
 	private onDocumentChange(e: vscode.TextDocumentChangeEvent) {
 		const rel = this.rel(e.document.uri);
 		if (!rel || !e.contentChanges.length || !this.shadow.has(rel)) return;
+		// Capture everything now; the document and input state move on while we wait.
 		const now = Date.now();
 		const after = e.document.getText();
-
-		// Not dirty afterwards and not an undo/redo back to the saved state:
-		// VS Code reloaded the file because another program rewrote it on disk.
-		if (!e.document.isDirty && e.reason === undefined) {
-			if (this.shadow.get(rel) !== after) {
-				this.shadow.set(rel, after);
-				this.transport.record({ kind: 'external_write', file: rel, text: after });
-			}
-			return;
-		}
-
-		for (const change of e.contentChanges) {
-			const text = change.text;
-			const kind = this.classify(text, e.reason, now);
-			this.transport.record({ kind, file: rel, off: change.rangeOffset, del: change.rangeLength, text });
-		}
-		this.shadow.set(rel, after);
+		const changes = e.contentChanges.map((c) => ({ text: c.text, off: c.rangeOffset, del: c.rangeLength, kind: this.classify(c.text, e.reason, now) }));
+		// The document looks unmodified after the change. VS Code updates the "unsaved" state a moment after
+		// the edit, so this is either the first edit after a save, or a reload because another program
+		// rewrote the file. Only the disk can tell: a reload matches it, a fresh edit doesn't.
+		const maybeReload = !e.document.isDirty && e.reason === undefined;
+		const uri = e.document.uri;
 		if (this.pendingPaste && now - this.pendingPaste.at > PASTE_WINDOW_MS) this.pendingPaste = undefined;
+
+		this.serial(async () => {
+			if (maybeReload && (await readText(uri)) === after) {
+				if (this.shadow.get(rel) !== after) this.transport.record({ kind: 'external_write', file: rel, text: after });
+				this.shadow.set(rel, after);
+				return;
+			}
+			for (const c of changes) this.transport.record({ kind: c.kind, file: rel, off: c.off, del: c.del, text: c.text });
+			this.shadow.set(rel, after);
+		});
 	}
 
 	private classify(text: string, reason: vscode.TextDocumentChangeReason | undefined, now: number): string {
@@ -225,7 +233,11 @@ export class Recorder implements vscode.Disposable {
 		return 'programmatic';
 	}
 
-	private async onDiskChange(uri: vscode.Uri) {
+	private onDiskChange(uri: vscode.Uri) {
+		this.serial(() => this.handleDiskChange(uri));
+	}
+
+	private async handleDiskChange(uri: vscode.Uri) {
 		const rel = this.rel(uri);
 		if (!rel) return;
 		// Open with unsaved edits: VS Code keeps the editor copy, so ours is still right.
@@ -252,6 +264,8 @@ export class Recorder implements vscode.Disposable {
 	/** Hashes of every tracked text file on disk, for submission. */
 	async snapshotHashes(): Promise<Record<string, string>> {
 		await vscode.workspace.saveAll(false);
+		await new Promise((r) => setTimeout(r, 300)); // let save and watcher events arrive
+		await this.queue; // ...and be recorded before the caller flushes
 		const out: Record<string, string> = {};
 		const uris = await vscode.workspace.findFiles(new vscode.RelativePattern(this.root, '**/*'), EXCLUDE_GLOB, MAX_FILES);
 		for (const uri of uris) {

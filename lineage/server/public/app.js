@@ -26,7 +26,7 @@ const fmtDateTime = (t) => new Date(t).toLocaleString([], { month: 'short', day:
 const fmtTimeSec = (t) => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' });
 const fmtDate = (t) => new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
 const fmtGap = (ms) => ms < 1000 ? `+${ms}ms` : ms < 60_000 ? `+${(ms / 1000).toFixed(1)}s` : ms < 3_600_000 ? `+${Math.round(ms / 60_000)} min` : `+${(ms / 3_600_000).toFixed(1)} h`;
-const fmtMinutes = (m) => m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+const fmtMinutes = (m) => m < 1 ? "< 1 min" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const srcColor = (s) => cssVar(s === 'delete' ? '--faint' : `--${s}`) || '#888';
 

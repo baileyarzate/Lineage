@@ -17,9 +17,9 @@
 
 <br />
 
-<img src="lineage/docs/replay.gif" alt="Replay of a student's history: some typing, then Codex CLI is started in Lineage's terminal and three files appear at once, marked in red" width="100%" />
+<img src="lineage/docs/demo.gif" alt="Recording of the Lineage app: a student joins an assignment, types a solution, pastes a snippet, runs Claude Code in Lineage's terminal, and submits; then the instructor dashboard shows 50.8% written in Lineage with three alerts" width="100%" />
 
-<sub>A real replay from the demo: the student types a little (green), then an AI agent started in Lineage's terminal writes three files at once (red).</sub>
+<sub>Recorded in the real Lineage app. A student joins, types a solution, pastes a snippet from outside, runs <b>Claude Code</b> in Lineage's terminal, and submits. Then the instructor's view of that exact session: typed in green, pasted in orange, agent-written in red, plus the agent's run. Sped up 1.6× · <a href="lineage/docs/demo.mp4">▶ full-speed video</a></sub>
 
 </div>
 
@@ -71,6 +71,11 @@ The server replays the history to rebuild each file character by character, then
 ## Built for instructors
 
 A dashboard designed for how instructors actually work: **courses, then assignments, then a review queue, then the evidence**.
+
+<div align="center">
+<img src="lineage/docs/replay.gif" alt="Replay of a student's history: some typing, then Codex CLI is started in Lineage's terminal and three files appear at once, marked in red" width="100%" />
+<sub>Replay any student's history step by step. Here, a little typing (green), then an agent started in Lineage's terminal writes three files at once (red).</sub>
+</div>
 
 <table>
 <tr>
