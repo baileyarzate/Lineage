@@ -45,7 +45,7 @@ All of these look at the **finished code**. Lineage looks at **how the code was 
 <td width="33%" valign="top">
 
 ### Records where code came from
-Every change to the assignment is labeled at the moment it happens: **typed**, **pasted from inside the editor**, **pasted from outside**, **written to disk by another program**, or **changed while Lineage was closed**.
+Every change to the assignment is labeled at the moment it happens: **typed**, **pasted from inside the editor**, **pasted from outside**, **written to disk by another program**, or **not recorded** (changed while Lineage was closed, or before the student joined).
 
 </td>
 <td width="33%" valign="top">
@@ -120,7 +120,7 @@ flowchart LR
     Q -- "upload when online" --> V
 ```
 
-1. The instructor puts a `.lineage.json` in the starter repo. Students open the project in Lineage and join with a code.
+1. The instructor creates the assignment, uploads the starter folder once (from the dashboard, or with `--starter`), and puts a `.lineage.json` in the starter repo. Students open the project in Lineage and join with a code.
 2. The recorder labels each change by where it came from. For example, agents like Claude Code write files straight to disk, so their code arrives as *written to disk by another program*, never as typing.
 3. Events are chained and encrypted before they leave the student's machine. Only the course server can read them.
 4. The server replays everything, checks the result against the submission, and shows the evidence to the instructor.
@@ -135,7 +135,8 @@ Lineage is honest about its limits; that's what makes its evidence hold up.
 | Agent started from Lineage's terminal | ✅ **Caught.** Logged with how long it ran. |
 | Agent history folder exists for this project | ✅ **Caught.** Found by exact path, without reading it. |
 | Code pasted from ChatGPT, a website or a friend | ✅ **Caught.** Logged as *pasted from outside*, with the exact text. |
-| Files changed while Lineage was closed | ✅ **Caught.** Logged as *changed while closed*. |
+| Files changed while Lineage was closed | ✅ **Caught.** Logged as *not recorded*. |
+| Assignment done before joining, then opened in Lineage | ✅ **Caught.** Compared with the instructor's starter code; anything extra is flagged as *written before joining*. |
 | Student edits or deletes their recording | ✅ **Caught.** Hash chain breaks, or an alert names the missing events. |
 | Student retypes AI output by hand from another screen | ❌ **Not caught, on purpose.** That's transcription. Pair Lineage with a 5-minute "walk me through this" conversation; the replay shows you exactly what to ask about. |
 
@@ -183,17 +184,17 @@ A window opens on [`lineage/sample-assignment`](lineage/sample-assignment). Join
 
 ```sh
 npm run create-course -- cs101 "CS 101 · Intro to Programming"
-npm run create-assignment -- cs101-hw3 --course cs101 --title "HW3 · Text statistics" --due 2026-12-01
+npm run create-assignment -- cs101-hw3 --course cs101 --title "HW3 · Text statistics" --due 2026-12-01 --starter ./hw3-starter
 ```
 
-Then add the printed `.lineage.json` to the starter repo.
+Then add the printed `.lineage.json` to the starter repo. The server snapshots the starter folder, so anything a student already has when they join that isn't in it gets flagged. You don't manage hashes; if you fix the starter later, upload the folder again (**Upload new version** on the assignment page, or `npm run set-starter -- cs101-hw3 ./hw3-starter`). Students who joined with an earlier version still match it.
 
 ## Repository layout
 
 | Path | What's there |
 |---|---|
 | [`lineage/server`](lineage/server) | Course server, review dashboard, replay engine and demo data generator. Node 24 with no dependencies (built-in `node:sqlite`). |
-| [`lineage/recorder`](lineage/recorder) | Editor extension that labels changes, notices agents, and handles the hash chain, encryption and offline spool. |
+| [`lineage/recorder`](lineage/recorder) | Editor extension that labels changes, notices agents, and handles the hash chain, encryption and offline spool. The build ships it inside the app ([`bundle-recorder.sh`](lineage/bundle-recorder.sh)). |
 | [`lineage/sample-assignment`](lineage/sample-assignment) | A starter project to try it on. |
 | Everything else | The [VSCodium](https://github.com/VSCodium/vscodium) build scripts, rebranded so the desktop app is called **Lineage** (`lineage` command, `com.lineage` bundle ID). |
 
@@ -217,7 +218,8 @@ cd lineage/server && npm test
 - [x] Server replay, coverage report, submission matching, gap detection
 - [x] Instructor dashboard: courses, review queue, timeline, file tree, minimap
 - [x] Detecting AI agents without monitoring the computer
-- [ ] Bundle the recorder into the Lineage build so it's always on
+- [x] Starter-code snapshots, so work done before joining is flagged
+- [x] Recorder built into the Lineage app (built-in extension, can't be uninstalled)
 - [ ] Block AI extensions and built-in chat in the build (extension allowlist)
 - [ ] Check the graded git commit against the recording
 - [ ] HTTPS, instructor accounts, hosted deployment

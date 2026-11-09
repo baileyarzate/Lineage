@@ -285,3 +285,50 @@ test('the recording is unreadable without the server private key', async () => {
 	assert.throws(() => openEnvelope(student.privateKey, envelope));
 	assert.match(openEnvelope(server.privateKey, envelope), /secret_solution/);
 });
+
+test('starter code: work done before joining is caught, and starter updates keep earlier students matching', async () => {
+	await withServer(async ({ base, adminKey, joinCode }) => {
+		const v1 = 'def add(a, b):\n    pass\n';
+		const v2 = 'def add(a, b):\n    """Return a + b."""\n    pass\n';
+		const upload = (files: Record<string, string>) => fetch(`${base}/api/admin/starter`, {
+			method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-key': adminKey },
+			body: JSON.stringify({ assignmentId: 'cs1-hw1', files }),
+		}).then((r) => r.json() as Promise<any>);
+		const join = async (studentId: string, files: Record<string, string>) => {
+			const { body } = await post(base, '/api/join', { assignmentId: 'cs1-hw1', joinCode, studentId });
+			const r = new FakeRecorder(base, body.token, body.publicKey);
+			r.push({ kind: 'session', app: 'test' });
+			for (const [file, text] of Object.entries(files)) r.push({ kind: 'baseline', file, text, initial: true });
+			assert.equal((await r.flush()).status, 200);
+			return report(base, adminKey, studentId);
+		};
+
+		// Without uploaded starter code, everything present at join counts as starter (and the report says so).
+		const before = await join('early', { 'main.py': v1.replace('pass', 'return a + b') });
+		assert.ok(before.flags.some((f: any) => f.code === 'no_starter'));
+		assert.equal(before.summary.written, 0);
+
+		assert.equal((await upload({ 'main.py': v1 })).version, 1);
+		const early = await report(base, adminKey, 'early'); // re-evaluated once the starter exists
+		assert.ok(early.flags.some((f: any) => f.code === 'pre_join' && f.file === 'main.py'));
+
+		assert.equal((await upload({ 'main.py': v2 })).version, 2);
+		const onV1 = await join('on-v1', { 'main.py': v1 });
+		const onV2 = await join('on-v2', { 'main.py': v2 });
+		for (const rep of [onV1, onV2]) {
+			assert.equal(rep.flags.filter((f: any) => f.level !== 'info').length, 0, JSON.stringify(rep.flags));
+			assert.equal(rep.summary.written, 0);
+		}
+
+		// Solved the assignment (and added a helper file) before ever opening Lineage.
+		const solution = v2.replace('pass', 'result = a + b\n    print("adding", a, b)\n    return result');
+		const cheat = await join('cheat', { 'main.py': solution, 'helper.py': 'def mul(a, b):\n    return a * b\n' });
+		const pre = cheat.flags.filter((f: any) => f.code === 'pre_join');
+		assert.deepEqual(pre.map((f: any) => f.file).sort(), ['helper.py', 'main.py']);
+		assert.ok(pre.some((f: any) => f.level === 'alert'));
+		assert.equal(cheat.summary.authoredPct, 0);
+		assert.equal(cheat.needsReview, true);
+		// Starter text is still credited as starter, not as unrecorded work.
+		assert.ok(cheat.summary.counts.starter >= 'defadd(a,b):"""Returna+b."""'.length);
+	});
+});

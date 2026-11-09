@@ -47,9 +47,15 @@ export function applyEvent(state, ev, ctx) {
 	const files = state.files;
 	switch (ev.kind) {
 		case 'baseline': {
-			const source = ctx.firstSession && ev.initial ? 'starter' : 'unobserved';
+			const joining = ctx.firstSession && ev.initial;
 			const f = files.get(ev.file);
-			if (!f) files.set(ev.file, { text: ev.text, attr: fill(ev.text.length, source) });
+			if (joining && typeof ev.starterBase === 'string') {
+				// The server compared this file with the instructor's starter code and it differed:
+				// keep what matches the starter, and mark the rest as written before recording began.
+				const g = { text: ev.starterBase, attr: fill(ev.starterBase.length, 'starter') };
+				replaceDiff(g, ev.text, 'unobserved');
+				files.set(ev.file, g);
+			} else if (!f) files.set(ev.file, { text: ev.text, attr: fill(ev.text.length, joining ? 'starter' : 'unobserved') });
 			else replaceDiff(f, ev.text, 'unobserved');
 			return;
 		}
@@ -150,7 +156,7 @@ export const CONTENT_KINDS = new Set(['baseline', 'external_write', 'rename', ..
 
 /** The source an event's inserted text is attributed to, for timeline coloring. */
 export function eventSource(ev) {
-	if (ev.kind === 'baseline') return ev.firstSession && ev.initial ? 'starter' : 'unobserved';
+	if (ev.kind === 'baseline') return ev.firstSession && ev.initial && typeof ev.starterBase !== 'string' ? 'starter' : 'unobserved';
 	if (ev.kind === 'external_write') return 'external_write';
 	if (ev.kind === 'delete') return 'delete';
 	if (ev.kind === 'rename') return 'editor';

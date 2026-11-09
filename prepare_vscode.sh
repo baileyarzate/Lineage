@@ -11,6 +11,9 @@ fi
 
 cp -f LICENSE vscode/LICENSE.txt
 
+# Lineage: ship the recorder as a built-in extension (always installed, can't be uninstalled).
+./lineage/bundle-recorder.sh vscode/extensions
+
 cd vscode || { echo "'vscode' dir not found"; exit 1; }
 
 { set +x; } 2>/dev/null

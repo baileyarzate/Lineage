@@ -1,6 +1,6 @@
 // Builds a student's report: replays their whole event history, re-verifies the hash
 // chain, checks save checkpoints, compares against their submission, and raises flags.
-import type { DB } from './db.ts';
+import { loadStarter, starterHash, type DB } from './db.ts';
 import { genesis, hashEvent, sha256 } from './chain.ts';
 // @ts-ignore: plain JS module shared with the browser
 import { applyEvent, createState, summarize } from '../public/replay.js';
@@ -14,6 +14,7 @@ export interface Flag {
 }
 
 const BIG_PASTE = 80; // chars: a few lines of code
+const PRE_JOIN_ALERT = 20; // non-whitespace chars: about one line of code written before joining
 const LATE_DELIVERY_MS = 10 * 60_000;
 
 /** A student lands in the review queue with any alert, or when most of their code wasn't written in Lineage. */
@@ -37,6 +38,10 @@ export function buildReport(db: DB, assignmentId: string, studentId: string) {
 
 	const flags: Flag[] = [];
 	const events: any[] = [];
+	const starter = loadStarter(db, assignmentId);
+	if (!starter.version) {
+		flags.push({ level: 'info', code: 'no_starter', message: 'No starter code was uploaded for this assignment, so work done before the student joined counts as starter code.' });
+	}
 	const state = createState();
 	let chainOk = true;
 	const agentRuns: { agent: string; name: string; scope: string; start: number; end: number; session: number }[] = [];
@@ -83,6 +88,11 @@ export function buildReport(db: DB, assignmentId: string, studentId: string) {
 			}
 
 			const firstSession = sessionIndex === 0;
+			if (firstSession && ev.kind === 'baseline' && ev.initial && starter.version) {
+				// Check the file against the instructor's starter code (any version).
+				const candidates = starter.files.get(ev.file) ?? [];
+				if (!candidates.some((c) => c.sha256 === starterHash(ev.text))) ev.starterBase = closest(candidates, ev.text)?.text ?? '';
+			}
 			const tracked = ev.kind === 'external_write' ? 'external_write' : ev.kind === 'baseline' ? 'unobserved' : undefined;
 			const before = tracked ? countSource(state.files.get(ev.file), tracked) : 0;
 			applyEvent(state, ev, { firstSession });
@@ -106,7 +116,11 @@ export function buildReport(db: DB, assignmentId: string, studentId: string) {
 				if (added > 0 && ev.kind === 'external_write') {
 					flags.push({ level: 'alert', code: 'external_write', file: ev.file, at: ev.t, message: `${ev.file} was written by another program (+${added} chars).` });
 				}
-				if (added > 0 && ev.kind === 'baseline') {
+				if (added > 0 && ev.kind === 'baseline' && typeof ev.starterBase === 'string') {
+					flags.push(ev.starterBase
+						? { level: added >= PRE_JOIN_ALERT ? 'alert' : 'warn', code: 'pre_join', file: ev.file, at: ev.t, message: `When the student joined, ${ev.file} already had ${added} characters that aren't in the starter code (written before Lineage was recording).` }
+						: { level: added >= PRE_JOIN_ALERT ? 'alert' : 'warn', code: 'pre_join', file: ev.file, at: ev.t, message: `${ev.file} isn't part of the starter code but already existed with ${added} characters when the student joined.` });
+				} else if (added > 0 && ev.kind === 'baseline') {
 					flags.push({ level: 'warn', code: 'unobserved', file: ev.file, at: ev.t, message: `${added} characters in ${ev.file} changed while Lineage wasn't running.` });
 				}
 			}
@@ -166,6 +180,7 @@ export function buildReport(db: DB, assignmentId: string, studentId: string) {
 		sessions: sessions.length,
 		activeMinutes: activeTime(events),
 		chainOk,
+		starterVersion: starter.version,
 		submittedAt: sub?.server_t,
 		submittedFiles: submitted ? Object.keys(submitted) : null,
 		mismatched,
@@ -175,6 +190,21 @@ export function buildReport(db: DB, assignmentId: string, studentId: string) {
 		agentRuns,
 		events,
 	};
+}
+
+/** The starter version that shares the most text with `text` at its start and end. */
+function closest(candidates: { text: string }[], text: string) {
+	let best: { text: string } | undefined;
+	let bestScore = -1;
+	for (const c of candidates) {
+		let a = 0;
+		const max = Math.min(c.text.length, text.length);
+		while (a < max && c.text[a] === text[a]) a++;
+		let b = 0;
+		while (b < max - a && c.text[c.text.length - 1 - b] === text[text.length - 1 - b]) b++;
+		if (a + b > bestScore) { bestScore = a + b; best = c; }
+	}
+	return best;
 }
 
 /** Collapse many identical flag codes on one file into one line so the list stays readable. */

@@ -7,7 +7,7 @@ import { SOURCES, AUTHORED, CONTENT_KINDS, applyEvent, cloneState, createState, 
 const LABEL = {
 	typed: 'Typed', editor: 'Editor assist', paste_internal: 'Internal paste', starter: 'Starter code',
 	paste_external: 'External paste', external_write: 'Written by another program', programmatic: 'No user input',
-	unobserved: 'Changed while closed', delete: 'Deleted',
+	unobserved: 'Not recorded', delete: 'Deleted',
 };
 const KIND_LABEL = {
 	typed: 'typed', delete: 'deleted', paste_internal: 'pasted (internal)', paste_external: 'pasted from outside',
@@ -212,7 +212,14 @@ async function assignmentView(el, aid, alive) {
 			<div class="pagehead">
 				<div>${crumbs([['Courses', '#/'], [courseName]])}<h1>${esc(title)}</h1>
 					<p class="meta">${esc(dueLabel(a.due_at))}${a.due_at ? ' · ' : ''}${students.length} joined · ${students.filter((s) => s.submittedAt).length} submitted</p></div>
-				<div class="meta">Join code <span class="joincode">${esc(a.join_code)}</span></div>
+				<div class="headside">
+					<div class="meta">Join code <span class="joincode">${esc(a.join_code)}</span></div>
+					<div class="meta starter">${a.starter_version
+						? `Starter code <span class="pill ok">version ${a.starter_version}</span> <button class="link" data-upload>Upload new version</button>`
+						: `<span class="pill warn" title="Without it, work done before a student joins counts as starter code">No starter code</span> <button class="link" data-upload>Upload starter folder</button>`}
+						<input type="file" webkitdirectory multiple hidden data-starter>
+					</div>
+				</div>
 			</div>
 			<div class="toolbar">
 				<div class="chips">${Object.entries(FILTERS).map(([k, f]) => `<button data-f="${k}">${f.label} <span class="n">${students.filter(f.test).length}</span></button>`).join('')}</div>
@@ -275,7 +282,44 @@ async function assignmentView(el, aid, alive) {
 		render();
 	});
 	$('input[type=search]', el).oninput = (e) => { ui.q = e.target.value; render(); };
+	const picker = $('input[data-starter]', el);
+	$('[data-upload]', el).onclick = () => picker.click();
+	picker.onchange = async () => {
+		const btn = $('[data-upload]', el);
+		btn.disabled = true;
+		btn.textContent = 'Uploading…';
+		try {
+			const files = await readStarterFolder([...picker.files]);
+			const n = Object.keys(files).length;
+			if (!n) throw new Error('No text files found in that folder.');
+			const { version } = await api('/api/admin/starter', { assignmentId: aid, files });
+			await getOverview(true);
+			if (alive()) await route();
+			alert(`Saved ${n} starter files as version ${version}. Students who joined with an earlier version still match it.`);
+		} catch (err) {
+			if (err.message !== 'unauthorized') alert(`Couldn't upload starter code: ${err.message}`);
+			btn.disabled = false;
+			btn.textContent = 'Try again';
+		}
+	};
 	render();
+}
+
+// Same rules as the recorder's project scan (recorder/src/recorder.ts).
+const STARTER_EXCLUDE = new Set(['node_modules', '.git', 'out', 'dist', 'build', '__pycache__', '.venv', 'venv', '.idea', '.vscode-test', 'target']);
+const STARTER_MAX_FILE = 512 * 1024;
+
+/** Read a folder picked with <input webkitdirectory> into {relative path: text}. */
+async function readStarterFolder(list) {
+	const files = {};
+	for (const file of list) {
+		const parts = file.webkitRelativePath.split('/').slice(1); // drop the picked folder's own name
+		if (!parts.length || parts.slice(0, -1).some((p) => STARTER_EXCLUDE.has(p)) || file.size > STARTER_MAX_FILE) continue;
+		const bytes = new Uint8Array(await file.arrayBuffer());
+		if (bytes.subarray(0, 8000).includes(0)) continue; // binary
+		files[parts.join('/')] = new TextDecoder().decode(bytes);
+	}
+	return files;
 }
 
 function reviewPill(review) {

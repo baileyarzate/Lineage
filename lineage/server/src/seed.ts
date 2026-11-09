@@ -7,7 +7,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { genesis, hashEvent, sha256 } from './chain.ts';
-import { createAssignment, createCourse, openDb } from './db.ts';
+import { addStarterVersion, createAssignment, createCourse, openDb } from './db.ts';
 import { loadOrCreateKeys } from './keys.ts';
 
 const DAY = 86_400_000;
@@ -155,7 +155,7 @@ const P2: Omit<AssignmentSpec, 'profiles'> = {
 
 // ---- student simulation -------------------------------------------------------
 
-type Profile = 'honest' | 'crammer' | 'borderline' | 'paster' | 'agent' | 'scripted' | 'partial' | 'started';
+type Profile = 'honest' | 'crammer' | 'borderline' | 'paster' | 'agent' | 'scripted' | 'partial' | 'started' | 'prejoin';
 
 interface Item { file: FileSpec; idx: number; body: string }
 
@@ -185,6 +185,19 @@ class Student {
 
 	files(): string[] {
 		return [...Object.keys(this.spec.extras), '.lineage.json', ...this.exists].sort();
+	}
+
+	/** What the instructor hands out: every file as it is before any work. */
+	starterFiles(): Record<string, string> {
+		return Object.fromEntries(this.files().map((p) => [p, this.fileText(p)]));
+	}
+
+	/** Solve items before ever opening Lineage (they show up in the first baseline). */
+	prefill(list: Item[]) {
+		for (const it of list) {
+			this.segs.get(it.file.path)![it.idx] = it.body;
+			this.exists.add(it.file.path);
+		}
 	}
 
 	private fileText(path: string) {
@@ -407,6 +420,13 @@ function simulate(spec: AssignmentSpec, profile: Profile): { s: Student; submitt
 			s.endSession();
 			return { s, submitted: true };
 		}
+		case 'prejoin': {
+			// Did most of the work (e.g. with an agent) before joining, then typed the rest in Lineage.
+			const cut = Math.ceil(items.length * 0.7);
+			s.prefill(items.slice(0, cut));
+			human(items.slice(cut), sessionTimes(spec, 1, { lastNight: true }));
+			return { s, submitted: true };
+		}
 		case 'partial': {
 			const done = items.slice(0, Math.max(1, Math.ceil(items.length * between(0.3, 0.75))));
 			human(done, sessionTimes(spec, 1 + Math.floor(rand() * 2)));
@@ -438,7 +458,7 @@ createCourse(db, 'cs210', 'CS 210 · Data Structures & Algorithms');
 
 const rep = (p: Profile, n: number): Profile[] => Array(n).fill(p);
 const specs: AssignmentSpec[] = [
-	{ ...HW3, profiles: [...rep('honest', 8), 'crammer', 'borderline', 'paster', 'agent', 'honest', 'partial'] },
+	{ ...HW3, profiles: [...rep('honest', 7), 'prejoin', 'crammer', 'borderline', 'paster', 'agent', 'honest', 'partial'] },
 	{ ...HW4, profiles: [...rep('honest', 3), ...rep('partial', 7), ...rep('started', 2), 'agent', 'paster'] },
 	{ ...P2, profiles: [...rep('honest', 7), 'agent', 'agent', 'crammer', 'borderline'] },
 ];
@@ -454,6 +474,7 @@ const roster: Record<string, { name: string; profile: Profile }[]> = {};
 
 for (const spec of specs) {
 	createAssignment(db, spec.id, { courseId: spec.course, title: spec.title, dueAt: NOW + spec.dueInDays * DAY });
+	addStarterVersion(db, spec.id, new Student(spec).starterFiles());
 	roster[spec.id] = [];
 	// Shuffle profiles so the suspicious students aren't all at the end of the roster.
 	const profiles = [...spec.profiles].sort(() => rand() - 0.5);

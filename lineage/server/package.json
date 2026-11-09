@@ -11,6 +11,7 @@
     "start": "node src/main.ts",
     "create-course": "node src/cli.ts create-course",
     "create-assignment": "node src/cli.ts create-assignment",
+    "set-starter": "node src/cli.ts set-starter",
     "list": "node src/cli.ts list",
     "demo": "node src/seed.ts data-demo && LINEAGE_DATA=data-demo PORT=4748 node src/main.ts",
     "test": "node --test \"test/**/*.test.ts\""

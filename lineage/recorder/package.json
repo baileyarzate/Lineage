@@ -14,6 +14,13 @@
   "activationEvents": [
     "workspaceContains:.lineage.json"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "Lineage only records edits; it never runs code from the project, so it keeps recording in Restricted Mode."
+    },
+    "virtualWorkspaces": false
+  },
   "main": "./out/extension.js",
   "contributes": {
     "commands": [

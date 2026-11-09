@@ -20,11 +20,11 @@ Each change is classified by where it came from:
 | typed | Keystrokes in the editor | Authored |
 | editor | Autocomplete, formatting, undo/redo right after user input | Authored |
 | paste_internal | Pasted text that was copied inside the editor | Authored |
-| starter | In the starter code when the student joined | Excluded |
+| starter | Matches the instructor's starter code when the student joined | Excluded |
 | paste_external | Pasted from outside the editor | Unattributed |
 | external_write | **Written to disk by another program** (Claude Code, Codex, scripts, other editors) | Unattributed |
 | programmatic | Edited in the editor with no user input nearby (e.g. another extension) | Unattributed |
-| unobserved | Changed while Lineage wasn't running | Unattributed |
+| unobserved | Not recorded: changed while Lineage wasn't running, or already there when the student joined but not in the starter code | Unattributed |
 
 Events are linked in a SHA-256 hash chain, encrypted (AES-256-GCM, key wrapped with the server's RSA public key), and spooled to the extension's global storage until the server accepts them. The server rejects any batch that doesn't continue the chain, and records when each batch arrived.
 
@@ -33,7 +33,9 @@ The report replays the full history to rebuild every file with a source attached
 - reports **% written in Lineage** (authored chars ÷ chars added beyond the starter code, whitespace excluded)
 - compares the replay with the student's submitted file hashes
 - checks the replay against content hashes recorded at every save
-- flags disk writes by other programs, large external pastes, edits with no user input, changes made while Lineage was closed, and late delivery
+- flags disk writes by other programs, large external pastes, edits with no user input, changes made while Lineage was closed, work done before joining, and late delivery
+
+**Starter code.** The instructor uploads the starter folder once (dashboard: **Upload starter folder** on the assignment page; CLI: `--starter <folder>` or `npm run set-starter -- <id> <folder>`). The server stores every file and compares each student's first snapshot against it. Matching text counts as starter code; anything else is flagged `pre_join` (an alert from about one line of code). Each upload is a new version, and students match whichever version they started from, so fixing the starter mid-assignment doesn't flag anyone. Without an upload, everything present at join counts as starter code and the report says so.
 
 Reports are evidence for a person to review, not a verdict.
 
@@ -95,8 +97,11 @@ Students follow realistic profiles: honest multi-session work, a last-night cram
 
 ```sh
 npm run create-course -- cs101 "CS 101 · Intro to Programming"
-npm run create-assignment -- cs101-hw3 --course cs101 --title "HW3 · Text statistics" --due 2026-12-01
+npm run create-assignment -- cs101-hw3 --course cs101 --title "HW3 · Text statistics" --due 2026-12-01 --starter ./hw3-starter
+npm run set-starter -- cs101-hw3 ./hw3-starter     # after fixing the starter: adds version 2
 ```
+
+Set `LINEAGE_PUBLIC_URL=https://your-server` so the printed `.lineage.json` points students at the deployed server.
 
 Put a `.lineage.json` at the root of the starter repo:
 
@@ -107,6 +112,7 @@ Put a `.lineage.json` at the root of the starter repo:
 ## Layout
 
 - `server/`: Node server with no dependencies (built-in `node:sqlite`). `public/replay.js` is the replay engine, shared by the server and the dashboard.
+- `bundle-recorder.sh`: compiles the recorder and copies it into the app as a built-in extension. `prepare_vscode.sh` runs it on every build; you can also point it at an existing `Lineage.app/Contents/Resources/app/extensions`.
 - `recorder/`: the editor extension. `src/recorder.ts` classifies changes; `src/transport.ts` handles the chain, encryption and spool.
 - `sample-assignment/`: a starter project to try it on.
 

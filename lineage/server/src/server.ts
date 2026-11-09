@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { genesis, hashEvent } from './chain.ts';
-import { listAssignments, listCourses, openDb, type DB } from './db.ts';
+import { addStarterVersion, listAssignments, listCourses, openDb, starterVersion, starterVersions, type DB } from './db.ts';
 import { loadOrCreateKeys, openEnvelope, type Envelope } from './keys.ts';
 import { buildReport } from './report.ts';
 
@@ -139,6 +139,21 @@ async function route(req: IncomingMessage, res: ServerResponse, ctx: Ctx) {
 			return;
 		}
 
+		if (req.method === 'GET' && path === '/api/admin/starter') {
+			send(res, 200, { versions: starterVersions(db, url.searchParams.get('assignment') ?? '') });
+			return;
+		}
+
+		if (req.method === 'POST' && path === '/api/admin/starter') {
+			const { assignmentId, files } = await readJson(req);
+			if (!db.prepare('SELECT 1 FROM assignments WHERE id = ?').get(String(assignmentId))) throw new HttpError(404, 'no such assignment');
+			if (!files || typeof files !== 'object' || !Object.keys(files).length) throw new HttpError(400, 'no files');
+			let version: number;
+			try { version = addStarterVersion(db, assignmentId, files); } catch (err: any) { throw new HttpError(400, err.message); }
+			send(res, 200, { version, versions: starterVersions(db, assignmentId) });
+			return;
+		}
+
 		if (req.method === 'POST' && path === '/api/admin/review') {
 			const { assignmentId, studentId, status, note } = await readJson(req);
 			if (!['cleared', 'follow_up', null].includes(status ?? null)) throw new HttpError(400, 'status must be cleared, follow_up or null');
@@ -176,7 +191,7 @@ function cachedReport(ctx: Ctx, assignment: string, student: string) {
 			(SELECT MAX(server_t) FROM submissions WHERE token = e.token) AS sub
 		FROM enrollments e WHERE e.assignment_id = ? AND e.student_id = ?`).get(assignment, student) as { n: number; sub: number | null } | undefined;
 	if (!meta) return undefined;
-	const key = `${meta.n}:${meta.sub}`;
+	const key = `${meta.n}:${meta.sub}:${starterVersion(ctx.db, assignment)}`;
 	const id = `${assignment}\0${student}`;
 	const hit = ctx.cache.get(id);
 	if (hit?.key === key) return hit.report;
