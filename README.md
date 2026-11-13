@@ -110,6 +110,11 @@ Plenty of courses now allow ChatGPT or Stack Overflow as long as students cite w
 - puts a comment above the pasted code, like `# Source: [1] OpenAI, "ChatGPT," Accessed: Nov. 12, 2026. [Online]. Available: https://chatgpt.com/share/…`
 - tells the instructor which pastes were cited and which weren't
 
+<div align="center">
+<img src="lineage/docs/cite.gif" alt="Recording of the Lineage app: a student types a small function, pastes a helper from outside, and a notification asks where it came from. They give a ChatGPT link; Lineage adds a Source comment above the pasted code and an IEEE entry in REFERENCES.md. The instructor's page then shows 74.5% pasted with a citation, the source listed under Sources cited, and the cited code in blue in the replay." width="100%" />
+<sub>Recorded in the Lineage app. A student pastes a helper, cites it with a ChatGPT link, and gets the comment and the <code>REFERENCES.md</code> entry. Then the instructor's view: the paste counted as cited, the source listed, and the cited code in blue. Sped up 1.3× · <a href="lineage/docs/cite.mp4">▶ full-speed video</a></sub>
+</div>
+
 Typed code can be cited too, with **Lineage: Cite Selection**. Links are recognized from the URL itself, so nothing gets fetched. On the dashboard, cited pastes show up in blue and are listed under **Sources cited**. A student whose outside code is all cited stays out of the review queue. Instructors can turn the prompt off with `"citations": { "prompt": false }` in `.lineage.json`.
 
 The source is whatever the student says it is, so a student could name the wrong one. The pasted text is still in the replay if you want to check.
