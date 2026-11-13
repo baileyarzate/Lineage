@@ -56,8 +56,8 @@ try {
 		.replace('<title>', '<title>Demo · ')
 		.replace('<script type="module" src="app.js">', `<script>window.LINEAGE_DEMO = ${demo};</script>\n<script type="module" src="app.js">`);
 	writeFileSync(join(OUT, 'index.html'), html);
-	// Cloudflare Pages: let browsers cache the (immutable) report files for a while.
-	writeFileSync(join(OUT, '_headers'), '/data/*\n  Cache-Control: public, max-age=3600\n');
+	// Cloudflare Pages: short cache, so a redeploy shows up within minutes.
+	writeFileSync(join(OUT, '_headers'), '/data/*\n  Cache-Control: public, max-age=300\n');
 
 	const size = execFileSync('du', ['-sh', OUT]).toString().split('\t')[0];
 	console.log(`\nDemo site written to ${OUT} (${overview.assignments.length} assignments, ${reports} student reports, ${size}).`);
