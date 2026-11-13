@@ -32,8 +32,9 @@ const srcColor = (s) => cssVar(s === 'delete' ? '--faint' : `--${s}`) || '#888';
 
 function dueLabel(dueAt) {
 	if (!dueAt) return '';
-	const days = Math.round((dueAt - Date.now()) / 86_400_000);
-	if (dueAt < Date.now()) return `Closed ${fmtDate(dueAt)}`;
+	const now = DEMO ? DEMO.exportedAt : Date.now(); // the demo is a snapshot: keep "due in N days" as it was
+	const days = Math.round((dueAt - now) / 86_400_000);
+	if (dueAt < now) return `Closed ${fmtDate(dueAt)}`;
 	return `Due ${fmtDate(dueAt)}${days <= 7 ? ` · in ${days} day${days === 1 ? '' : 's'}` : ''}`;
 }
 
@@ -65,7 +66,52 @@ let adminKey = safeGet(localStorage, 'lineage.adminKey');
 	}
 }
 
+// Public demo: a static export of the demo data (see src/export-demo.ts). No server, no admin key;
+// reviews and notes are kept in this browser only.
+const DEMO = window.LINEAGE_DEMO;
+const DEMO_REVIEWS = 'lineage.demo.reviews';
+
+async function demoApi(path, body) {
+	const url = new URL(path, location.href);
+	const q = url.searchParams;
+	const reviews = JSON.parse(safeGet(localStorage, DEMO_REVIEWS) ?? '{}');
+	const review = (a, s, base) => (`${a}/${s}` in reviews ? reviews[`${a}/${s}`] : base);
+	const load = async (file) => {
+		const res = await fetch(file);
+		if (!res.ok) throw new Error('Not part of the demo.');
+		return res.json();
+	};
+	const students = async (a) => (await load(`data/students/${encodeURIComponent(a)}.json`))
+		.map((r) => ({ ...r, review: review(a, r.studentId, r.review) }));
+
+	if (body) {
+		if (!url.pathname.endsWith('/review')) throw new Error('This is a read-only demo.');
+		const r = body.status || body.note ? { status: body.status ?? null, note: body.note ?? '', updated_at: Date.now() } : null;
+		reviews[`${body.assignmentId}/${body.studentId}`] = r;
+		safeSet(localStorage, DEMO_REVIEWS, JSON.stringify(reviews));
+		return { review: r };
+	}
+	if (url.pathname.endsWith('/students')) return students(q.get('assignment'));
+	if (url.pathname.endsWith('/report')) {
+		const a = q.get('assignment'), s = q.get('student');
+		const r = await load(`data/report/${encodeURIComponent(a)}/${encodeURIComponent(s)}.json`);
+		return { ...r, review: review(a, s, r.review) };
+	}
+	if (url.pathname.endsWith('/overview')) {
+		// Queue counts depend on this visitor's own reviews, so recount them.
+		const ov = await load('data/overview.json');
+		for (const a of ov.assignments) {
+			const rows = await students(a.id);
+			a.needsReview = rows.filter((r) => r.needsReview && r.review?.status !== 'cleared').length;
+			a.followUp = rows.filter((r) => r.review?.status === 'follow_up').length;
+		}
+		return ov;
+	}
+	throw new Error('Not part of the demo.');
+}
+
 async function api(path, body) {
+	if (DEMO) return demoApi(path, body);
 	const res = await fetch(path, {
 		method: body ? 'POST' : 'GET',
 		headers: { 'x-admin-key': adminKey ?? '', ...(body ? { 'content-type': 'application/json' } : {}) },
@@ -121,7 +167,7 @@ let routeSeq = 0;
 async function route() {
 	active?.destroy?.();
 	active = undefined;
-	if (!adminKey) return showLogin();
+	if (!adminKey && !DEMO) return showLogin();
 	$('#login').hidden = true;
 	const seq = ++routeSeq;
 	const alive = () => seq === routeSeq;
@@ -137,6 +183,13 @@ async function route() {
 	}
 }
 window.addEventListener('hashchange', route);
+
+if (DEMO) {
+	$('header.top').insertAdjacentHTML('beforeend', `
+		<span class="demo-note">Live demo with simulated students. Your reviews stay in this browser.
+			<button class="link" id="demoReset">Reset</button> · <a href="${DEMO.about}">What is Lineage?</a></span>`);
+	$('#demoReset').onclick = () => { try { localStorage.removeItem(DEMO_REVIEWS); } catch {} overview = undefined; route(); };
+}
 
 // ============================================================================
 // Home: courses and assignments
@@ -213,10 +266,10 @@ async function assignmentView(el, aid, alive) {
 				<div>${crumbs([['Courses', '#/'], [courseName]])}<h1>${esc(title)}</h1>
 					<p class="meta">${esc(dueLabel(a.due_at))}${a.due_at ? ' · ' : ''}${students.length} joined · ${students.filter((s) => s.submittedAt).length} submitted</p></div>
 				<div class="headside">
-					<div class="meta">Join code <span class="joincode">${esc(a.join_code)}</span></div>
+					${a.join_code ? `<div class="meta">Join code <span class="joincode">${esc(a.join_code)}</span></div>` : ''}
 					<div class="meta starter">${a.starter_version
-						? `Starter code <span class="pill ok">version ${a.starter_version}</span> <button class="link" data-upload>Upload new version</button>`
-						: `<span class="pill warn" title="Without it, work done before a student joins counts as starter code">No starter code</span> <button class="link" data-upload>Upload starter folder</button>`}
+						? `Starter code <span class="pill ok">version ${a.starter_version}</span>${DEMO ? '' : ' <button class="link" data-upload>Upload new version</button>'}`
+						: `<span class="pill warn" title="Without it, work done before a student joins counts as starter code">No starter code</span>${DEMO ? '' : ' <button class="link" data-upload>Upload starter folder</button>'}`}
 						<input type="file" webkitdirectory multiple hidden data-starter>
 					</div>
 				</div>
@@ -283,7 +336,7 @@ async function assignmentView(el, aid, alive) {
 	});
 	$('input[type=search]', el).oninput = (e) => { ui.q = e.target.value; render(); };
 	const picker = $('input[data-starter]', el);
-	$('[data-upload]', el).onclick = () => picker.click();
+	if ($('[data-upload]', el)) $('[data-upload]', el).onclick = () => picker.click();
 	picker.onchange = async () => {
 		const btn = $('[data-upload]', el);
 		btn.disabled = true;

@@ -81,6 +81,8 @@ cd lineage/server
 npm run demo        # seeds 2 courses, 3 assignments, ~40 students, ~40k events; serves on :4748
 ```
 
+The same data is published as a static, read-only demo at **https://lineage-demo.pages.dev**. `npm run export-demo` writes it to `lineage/demo-site/`; `npm run deploy-demo` exports and uploads it to Cloudflare Pages (needs `npx wrangler login` once).
+
 Students follow realistic profiles: honest multi-session work, a last-night crammer, a student who pastes from the web, and agent users whose files appear on disk.
 
 ## Dashboard

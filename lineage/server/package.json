@@ -13,6 +13,8 @@
     "create-assignment": "node src/cli.ts create-assignment",
     "set-starter": "node src/cli.ts set-starter",
     "list": "node src/cli.ts list",
+    "export-demo": "node src/export-demo.ts",
+    "deploy-demo": "node src/export-demo.ts && cd .. && npx -y wrangler@4 pages deploy demo-site --project-name lineage-demo --branch main --commit-dirty=true",
     "demo": "node src/seed.ts data-demo && LINEAGE_DATA=data-demo PORT=4748 node src/main.ts",
     "test": "node --test \"test/**/*.test.ts\""
   },

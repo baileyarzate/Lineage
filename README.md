@@ -13,7 +13,7 @@
 [![Node 24+](https://img.shields.io/badge/node-24%2B-5f7186.svg)](https://nodejs.org)
 [![Status: prototype](https://img.shields.io/badge/status-prototype-d18a22.svg)](#roadmap)
 
-[**See it in 30 seconds**](#try-the-demo-in-one-command) · [How it works](#how-it-works) · [What it catches](#what-it-catches-and-what-it-doesnt) · [Privacy](#privacy-by-design)
+[**▶ Live demo**](https://lineage-demo.pages.dev) · [Run it locally](#try-the-demo-in-one-command) · [How it works](#how-it-works) · [What it catches](#what-it-catches-and-what-it-doesnt) · [Privacy](#privacy-by-design)
 
 <br />
 
@@ -154,7 +154,9 @@ Recordings are encrypted for the instructor's server, so **students can't read t
 
 ## Try the demo in one command
 
-You need [Node.js 24+](https://nodejs.org). Nothing else to install.
+**No install needed:** open the [**live instructor dashboard**](https://lineage-demo.pages.dev). It has 39 simulated students, including agent users, a paster and a student who did the work before joining. Your review clicks stay in your browser.
+
+To run it yourself, you need [Node.js 24+](https://nodejs.org). Nothing else to install.
 
 ```sh
 git clone https://github.com/baileyarzate/Lineage.git
