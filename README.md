@@ -6,20 +6,20 @@
 
 ### Show how the code got written.
 
-**Lineage is a code editor for computer science courses. It records where every line of an assignment came from (typed, pasted, or written by an AI agent), so honest students can prove their work is theirs and instructors can see what didn't come from the student.**
+**Lineage is a code editor for computer science courses. It keeps track of where each line of an assignment came from: typed by the student, pasted in, or written by an AI agent. Students who did their own work can show it, and instructors can see which parts came from somewhere else.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-2f7d5b.svg)](LICENSE)
 [![Built on VSCodium](https://img.shields.io/badge/built%20on-VSCodium-2f6b58.svg)](https://github.com/VSCodium/vscodium)
 [![Node 24+](https://img.shields.io/badge/node-24%2B-5f7186.svg)](https://nodejs.org)
 [![Status: prototype](https://img.shields.io/badge/status-prototype-d18a22.svg)](#roadmap)
 
-[**▶ Live demo**](https://lineage-demo.pages.dev) · [Run it locally](#try-the-demo-in-one-command) · [How it works](#how-it-works) · [What it catches](#what-it-catches-and-what-it-doesnt) · [Privacy](#privacy-by-design)
+[**▶ Live demo**](https://lineage-demo.pages.dev) · [Run it locally](#try-it) · [How it works](#how-it-works) · [What it catches](#what-it-catches) · [Privacy](#privacy)
 
 <br />
 
 <img src="lineage/docs/demo.gif" alt="Recording of the Lineage app: a student joins an assignment, types a solution, pastes a snippet, runs Claude Code in Lineage's terminal, and submits; then the instructor dashboard shows 50.8% written in Lineage with three alerts" width="100%" />
 
-<sub>Recorded in the real Lineage app. A student joins, types a solution, pastes a snippet from outside, runs <b>Claude Code</b> in Lineage's terminal, and submits. Then the instructor's view of that exact session: typed in green, pasted in orange, agent-written in red, plus the agent's run. Sped up 1.6× · <a href="lineage/docs/demo.mp4">▶ full-speed video</a></sub>
+<sub>Recorded in the Lineage app. A student joins, types part of a solution, pastes a snippet from outside, runs <b>Claude Code</b> in the terminal, and submits. Then the instructor opens that same session: typed code in green, the paste in orange, the agent's code in red, and a marker for when the agent ran. Sped up 1.6× · <a href="lineage/docs/demo.mp4">▶ full-speed video</a></sub>
 
 </div>
 
@@ -27,16 +27,16 @@
 
 ## The problem
 
-An AI agent can finish a CS assignment in two minutes. Every existing answer to that has a serious drawback:
+An AI agent can finish a typical CS assignment in a couple of minutes. The usual ways of dealing with that all have problems:
 
-| Current approach | Drawback |
+| Approach | Problem |
 |---|---|
-| **Plagiarism checkers** (MOSS and similar) | They compare students with each other. Freshly generated AI code matches no one. |
-| **AI text detectors** | They guess from the finished code, and they falsely accuse real students. |
-| **Webcam proctoring** | It's invasive, students hate it, and it doesn't work for take-home projects. |
-| **Banning AI in the syllabus** | Without evidence it can't be enforced, and honest students can't prove anything either. |
+| **Plagiarism checkers** (MOSS and similar) | They compare students with each other. Code an AI wrote for one student won't match anyone. |
+| **AI text detectors** | They guess from the finished code, and they flag real students by mistake. |
+| **Webcam proctoring** | Invasive, unpopular, and no use for take-home projects. |
+| **Banning AI in the syllabus** | Hard to enforce, and students who followed the rules have no way to show it. |
 
-All of these look at the **finished code**. Lineage looks at **how the code was written**.
+Lineage takes a different approach. It records the assignment while it's being written, so the history is there to look at afterwards.
 
 ## What Lineage does
 
@@ -44,20 +44,20 @@ All of these look at the **finished code**. Lineage looks at **how the code was 
 <tr>
 <td width="33%" valign="top">
 
-### Records where code came from
-Every change to the assignment is labeled at the moment it happens: **typed**, **pasted from inside the editor**, **pasted from outside**, **written to disk by another program**, or **not recorded** (changed while Lineage was closed, or before the student joined).
+### Labels every change
+Each edit is tagged the moment it happens: **typed**, **pasted from inside the editor**, **pasted from outside**, **written to disk by another program**, or **not recorded** (changed while Lineage was closed, or before the student joined).
 
 </td>
 <td width="33%" valign="top">
 
-### Private and tamper-evident
-Events form a **SHA-256 hash chain** and are **encrypted on the student's machine** for the course server. Students can't read or change their own recording, and deleted batches show up as alerts.
+### Keeps the record private
+Events are linked in a **SHA-256 hash chain** and **encrypted on the student's computer** so only the course server can open them. Students can't read or edit their own recording, and if part of it goes missing the instructor is told.
 
 </td>
 <td width="33%" valign="top">
 
-### Gives evidence, not verdicts
-The server replays the history to rebuild each file character by character, then reports **how much was written in Lineage** along with factual flags. A person decides what it means.
+### Shows the instructor what happened
+The server replays the history, rebuilds every file character by character, and reports **how much was written in Lineage**, along with specific flags like "this file was written by another program." The instructor decides what to make of it.
 
 </td>
 </tr>
@@ -65,16 +65,16 @@ The server replays the history to rebuild each file character by character, then
 
 <div align="center">
 <img src="lineage/docs/student-agent.png" alt="Student review page for an agent user: 2.1% written in Lineage, four alerts, a timeline with a pink band where Codex CLI was running, and files colored red" width="100%" />
-<sub>An agent user: 2.1% written in Lineage. The pink band shows when Codex CLI was running in Lineage's terminal, and red marks code written to disk by another program.</sub>
+<sub>A student who used an agent: 2.1% written in Lineage. The pink band is when Codex CLI was running in the terminal, and red is code written to disk by another program.</sub>
 </div>
 
-## Built for instructors
+## The instructor dashboard
 
-A dashboard designed for how instructors actually work: **courses, then assignments, then a review queue, then the evidence**.
+You start from your courses, open an assignment, work through the students who need a look, and dig into the details for each one.
 
 <div align="center">
 <img src="lineage/docs/replay.gif" alt="Replay of a student's history: some typing, then Codex CLI is started in Lineage's terminal and three files appear at once, marked in red" width="100%" />
-<sub>Replay any student's history step by step. Here, a little typing (green), then an agent started in Lineage's terminal writes three files at once (red).</sub>
+<sub>Replaying a student's history. A bit of typing (green), then an agent started in the terminal writes three files at once (red).</sub>
 </div>
 
 <table>
@@ -83,23 +83,23 @@ A dashboard designed for how instructors actually work: **courses, then assignme
 <td width="50%"><img src="lineage/docs/review-queue.png" alt="Assignment review queue: two students flagged, sortable by percentage written in Lineage" /></td>
 </tr>
 <tr>
-<td><b>Courses.</b> See which assignments have students waiting for review.</td>
-<td><b>Review queue.</b> Only flagged students by default. Mark each one <i>Clear</i> or <i>Follow up</i> and the queue shrinks.</td>
+<td><b>Courses.</b> Each assignment shows how many students are waiting for review.</td>
+<td><b>Review queue.</b> Starts with just the flagged students. Mark each one <i>Clear</i> or <i>Follow up</i> and the list gets shorter.</td>
 </tr>
 </table>
 
 On each student's page:
 
-- **Two-level timeline.** The top strip summarizes the whole history (thousands of events) and marks every paste and agent write. Drag it to scroll fast, and use the zoomed strip below for single steps.
-- **Replay frame by frame** with `←` `→`, or play it back at the student's own pace.
-- **File tree for the whole project**, with each file colored by where its code came from. Untouched starter files are dimmed.
-- **Code view with a minimap** that shows where in a file the code that wasn't written in Lineage is.
-- **Flags link to the exact moment**, and private notes are saved per student.
-- **Move through the queue** with `[` `]` without going back to the list.
+- **Two timelines.** The top one covers the whole history (often thousands of events) and marks every paste and agent write. Drag it to move quickly; the zoomed one underneath is for going step by step.
+- **Frame-by-frame replay** with `←` `→`, or press play to watch it at the student's pace.
+- **The whole project's file tree**, with each file colored by where its code came from. Starter files nobody touched are dimmed.
+- **A code view with a minimap** that marks where in the file the outside code sits.
+- **Clickable flags** that jump to the moment they happened, plus private notes for each student.
+- **`[` and `]`** to move to the previous or next student without going back to the list.
 
 <div align="center">
 <img src="lineage/docs/student-honest.png" alt="Student review page for an honest student: 100% written in Lineage across three sessions, no flags" width="100%" />
-<sub>An honest student: 100% written in Lineage across three sessions over six days, with no flags. The same evidence protects students from false accusations.</sub>
+<sub>A student who did their own work: 100% written in Lineage over three sessions and six days, no flags. If anyone ever questions their work, this is their answer.</sub>
 </div>
 
 ## How it works
@@ -114,49 +114,51 @@ flowchart LR
     end
     subgraph Server["Course server"]
         V["Verify chain<br/>detect gaps"] --> P["Replay history<br/>attribute every character"]
-        P --> F["Compare with submission<br/>raise factual flags"]
+        P --> F["Compare with submission<br/>raise flags"]
         F --> D["Instructor dashboard"]
     end
     Q -- "upload when online" --> V
 ```
 
-1. The instructor creates the assignment, uploads the starter folder once (from the dashboard, or with `--starter`), and puts a `.lineage.json` in the starter repo. Students open the project in Lineage and join with a code.
-2. The recorder labels each change by where it came from. For example, agents like Claude Code write files straight to disk, so their code arrives as *written to disk by another program*, never as typing.
-3. Events are chained and encrypted before they leave the student's machine. Only the course server can read them.
-4. The server replays everything, checks the result against the submission, and shows the evidence to the instructor.
+1. The instructor creates the assignment, uploads the starter folder once (on the dashboard, or with `--starter`), and adds a `.lineage.json` file to the starter repo. Students open the project in Lineage and join with a code.
+2. As the student works, the recorder labels each change by where it came from. Agents like Claude Code save files directly to disk, so their code shows up as *written to disk by another program*.
+3. Everything is chained and encrypted on the student's computer before it's sent. Only the course server has the key.
+4. The server replays the whole history, checks it against what the student submitted, and shows the results on the dashboard.
 
-## What it catches, and what it doesn't
-
-Lineage is honest about its limits; that's what makes its evidence hold up.
+## What it catches
 
 | Scenario | Result |
 |---|---|
-| Agent (Claude Code, Codex, Aider, …) edits the project files | ✅ **Caught.** Code shows as *written to disk by another program*. |
-| Agent started from Lineage's terminal | ✅ **Caught.** Logged with how long it ran. |
-| Agent history folder exists for this project | ✅ **Caught.** Found by exact path, without reading it. |
-| Code pasted from ChatGPT, a website or a friend | ✅ **Caught.** Logged as *pasted from outside*, with the exact text. |
+| An agent (Claude Code, Codex, Aider, …) edits the project files | ✅ **Caught.** The code shows up as *written to disk by another program*. |
+| An agent is started from Lineage's terminal | ✅ **Caught.** Logged along with how long it ran. |
+| An agent has a history folder for this project | ✅ **Caught.** Lineage checks the one exact path and doesn't open it. |
+| Code pasted from ChatGPT, a website, or a friend | ✅ **Caught.** Logged as *pasted from outside*, with the exact text. |
 | Files changed while Lineage was closed | ✅ **Caught.** Logged as *not recorded*. |
-| Assignment done before joining, then opened in Lineage | ✅ **Caught.** Compared with the instructor's starter code; anything extra is flagged as *written before joining*. |
-| Student edits or deletes their recording | ✅ **Caught.** Hash chain breaks, or an alert names the missing events. |
-| Student retypes AI output by hand from another screen | ❌ **Not caught, on purpose.** That's transcription. Pair Lineage with a 5-minute "walk me through this" conversation; the replay shows you exactly what to ask about. |
+| The assignment was done before joining, then opened in Lineage | ✅ **Caught.** Anything that isn't in the instructor's starter code gets flagged as *written before joining*. |
+| The student edits or deletes part of their recording | ✅ **Caught.** The hash chain breaks, or an alert says how many events are missing. |
+| The student retypes AI output by hand from another screen | ❌ **Not caught.** Lineage would see normal typing. A quick "walk me through this" conversation covers it, and the replay shows you which parts to ask about. |
 
-## Privacy by design
+## Privacy
 
-Lineage only records facts about **this project, inside this editor**.
+Lineage only looks at **this project, inside this editor**. It records:
 
-- ✅ Edits to project files and where they came from
+- ✅ Edits to the project's files and where each one came from
 - ✅ AI agents started from Lineage's own terminal
-- ✅ Agent traces for this project, checked by **exact path only**: never listing folders, never reading contents
-- ❌ No process monitoring, no screen capture, no camera, no microphone, no OS-level monitoring
-- ❌ No typing-rhythm or other behavioral profiling
+- ✅ Whether an agent keeps history for this project, checked at **one exact path**. It doesn't browse folders or open files.
 
-Recordings are encrypted for the instructor's server, so **students can't read their own replay**, and flags never appear on the student's machine. The student is told what Lineage records, not what it found.
+It doesn't record:
 
-## Try the demo in one command
+- ❌ Other running programs, the screen, the camera, or the microphone
+- ❌ Anything outside the editor, at the operating-system level
+- ❌ Typing rhythm or any other behavior profiling
 
-**No install needed:** open the [**live instructor dashboard**](https://lineage-demo.pages.dev). It has 39 simulated students, including agent users, a paster and a student who did the work before joining. Your review clicks stay in your browser.
+Recordings are encrypted for the instructor's server, so **students can't open their own replay**, and flags only ever appear on the server. Lineage's status panel tells students what's being recorded. The results stay with the instructor.
 
-To run it yourself, you need [Node.js 24+](https://nodejs.org). Nothing else to install.
+## Try it
+
+The quickest way is the [**live instructor dashboard**](https://lineage-demo.pages.dev). It has 39 simulated students, including agent users, someone who pastes from the web, and a student who did the work before joining. Your review clicks are only saved in your browser.
+
+To run the same demo on your own machine, all you need is [Node.js 24+](https://nodejs.org):
 
 ```sh
 git clone https://github.com/baileyarzate/Lineage.git
@@ -164,9 +166,9 @@ cd Lineage/lineage/server
 npm run demo
 ```
 
-Open the dashboard link it prints. The demo has **2 courses, 3 assignments, 39 students and about 42,000 events**, including honest students, a last-night crammer, a student who pastes from the web, and AI agent users.
+Open the dashboard link it prints. You'll find **2 courses, 3 assignments, 39 students and about 42,000 events**: students who did their own work, a last-night crammer, a student who pastes from the web, and a few agent users.
 
-### Try recording yourself
+### Record yourself
 
 ```sh
 # Terminal 1: server
@@ -180,7 +182,7 @@ npm install && npm run compile
 code .                                   # then press F5
 ```
 
-A window opens on [`lineage/sample-assignment`](lineage/sample-assignment). Join with any student ID and the code, type a solution, then try `echo "x = 1" >> main.py` in a terminal or run an agent there. Run **Lineage: Submit Assignment** and open the dashboard. Full details are in [lineage/README.md](lineage/README.md).
+A window opens on [`lineage/sample-assignment`](lineage/sample-assignment). Join with any student ID and the code, write some code, then try `echo "x = 1" >> main.py` in a terminal or run an agent there. Run **Lineage: Submit Assignment** and open the dashboard to see how it was recorded. More detail is in [lineage/README.md](lineage/README.md).
 
 ### Set up a real course
 
@@ -189,15 +191,15 @@ npm run create-course -- cs101 "CS 101 · Intro to Programming"
 npm run create-assignment -- cs101-hw3 --course cs101 --title "HW3 · Text statistics" --due 2026-12-01 --starter ./hw3-starter
 ```
 
-Then add the printed `.lineage.json` to the starter repo. The server snapshots the starter folder, so anything a student already has when they join that isn't in it gets flagged. You don't manage hashes; if you fix the starter later, upload the folder again (**Upload new version** on the assignment page, or `npm run set-starter -- cs101-hw3 ./hw3-starter`). Students who joined with an earlier version still match it.
+Add the `.lineage.json` it prints to your starter repo. The server keeps a copy of the starter folder and flags anything extra a student already has when they join. If you fix something in the starter later, upload the folder again (**Upload new version** on the assignment page, or `npm run set-starter -- cs101-hw3 ./hw3-starter`). Students who joined on the older version still match it.
 
 ## Repository layout
 
 | Path | What's there |
 |---|---|
-| [`lineage/server`](lineage/server) | Course server, review dashboard, replay engine and demo data generator. Node 24 with no dependencies (built-in `node:sqlite`). |
-| [`lineage/recorder`](lineage/recorder) | Editor extension that labels changes, notices agents, and handles the hash chain, encryption and offline spool. The build ships it inside the app ([`bundle-recorder.sh`](lineage/bundle-recorder.sh)). |
-| [`lineage/sample-assignment`](lineage/sample-assignment) | A starter project to try it on. |
+| [`lineage/server`](lineage/server) | Course server, dashboard, replay engine and demo data generator. Node 24 with no dependencies (uses the built-in `node:sqlite`). |
+| [`lineage/recorder`](lineage/recorder) | The editor extension that labels changes, notices agents, and handles the hash chain, encryption and offline storage. The build ships it inside the app ([`bundle-recorder.sh`](lineage/bundle-recorder.sh)). |
+| [`lineage/sample-assignment`](lineage/sample-assignment) | A small starter project to try it on. |
 | Everything else | The [VSCodium](https://github.com/VSCodium/vscodium) build scripts, rebranded so the desktop app is called **Lineage** (`lineage` command, `com.lineage` bundle ID). |
 
 ### Build the desktop app
@@ -206,7 +208,7 @@ Then add the printed `.lineage.json` to the starter repo. The server snapshots t
 SHOULD_BUILD_CLI=no ./dev/build.sh      # skip the Rust CLI if Rust isn't installed
 ```
 
-See [docs/howto-build.md](docs/howto-build.md) for requirements. The output is `VSCode-darwin-<arch>/Lineage.app` on macOS.
+Requirements are in [docs/howto-build.md](docs/howto-build.md). On macOS the app ends up at `VSCode-darwin-<arch>/Lineage.app`.
 
 ### Tests
 
@@ -216,12 +218,12 @@ cd lineage/server && npm test
 
 ## Roadmap
 
-- [x] Change labeling, hash chain, encryption, offline spool
+- [x] Change labeling, hash chain, encryption, offline storage
 - [x] Server replay, coverage report, submission matching, gap detection
 - [x] Instructor dashboard: courses, review queue, timeline, file tree, minimap
-- [x] Detecting AI agents without monitoring the computer
-- [x] Starter-code snapshots, so work done before joining is flagged
-- [x] Recorder built into the Lineage app (built-in extension, can't be uninstalled)
+- [x] Agent detection that stays inside the editor
+- [x] Starter-code snapshots, so work done before joining gets flagged
+- [x] Recorder built into the Lineage app (can't be uninstalled)
 - [ ] Block AI extensions and built-in chat in the build (extension allowlist)
 - [ ] Check the graded git commit against the recording
 - [ ] HTTPS, instructor accounts, hosted deployment
@@ -229,6 +231,6 @@ cd lineage/server && npm test
 
 ## Credits
 
-Lineage's desktop app is built on [VSCodium](https://github.com/VSCodium/vscodium), which builds Microsoft's open-source [`vscode`](https://github.com/microsoft/vscode) without its telemetry. VSCodium's original README is kept in [docs/vscodium-README.md](docs/vscodium-README.md). Lineage isn't affiliated with Microsoft or VSCodium.
+The desktop app is built on [VSCodium](https://github.com/VSCodium/vscodium), which packages Microsoft's open-source [`vscode`](https://github.com/microsoft/vscode) without telemetry. VSCodium's original README is in [docs/vscodium-README.md](docs/vscodium-README.md). Lineage isn't affiliated with Microsoft or VSCodium.
 
 Released under the [MIT License](LICENSE).

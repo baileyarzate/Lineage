@@ -37,9 +37,9 @@ The report replays the full history to rebuild every file with a source attached
 
 **Starter code.** The instructor uploads the starter folder once (dashboard: **Upload starter folder** on the assignment page; CLI: `--starter <folder>` or `npm run set-starter -- <id> <folder>`). The server stores every file and compares each student's first snapshot against it. Matching text counts as starter code; anything else is flagged `pre_join` (an alert from about one line of code). Each upload is a new version, and students match whichever version they started from, so fixing the starter mid-assignment doesn't flag anyone. Without an upload, everything present at join counts as starter code and the report says so.
 
-Reports are evidence for a person to review, not a verdict.
+An instructor reviews the report and decides what it means.
 
-**What it deliberately doesn't catch:** a person retyping code by hand from another screen. Lineage targets agents and paste-ins, not transcription.
+**What it misses:** someone retyping code by hand from another screen looks like normal typing. A short conversation about the code covers that case.
 
 ## What Lineage looks at (and what it doesn't)
 
@@ -47,7 +47,7 @@ Lineage only records facts about **this project inside this editor**:
 
 - edits to project files, and where each one came from (typed, pasted, written to disk by another program)
 - AI agents (`claude`, `codex`, `aider`, `gemini`, …) **started from Lineage's own terminal**, using the editor's shell integration
-- agent traces tied to this project, checked by **exact path only**: Claude Code's per-project history folder (`~/.claude/projects/<this project's path>`), Gemini CLI's project folder, and agent files inside the repo (`CLAUDE.md`, `.aider*`, …). Lineage checks only whether these exist and when they last changed. It never lists folders and never reads their contents.
+- agent traces tied to this project, checked by **exact path only**: Claude Code's per-project history folder (`~/.claude/projects/<this project's path>`), Gemini CLI's project folder, and agent files inside the repo (`CLAUDE.md`, `.aider*`, …). Lineage only checks whether these exist and when they last changed. It doesn't list folders or read what's inside them.
 
 It does **not** list running processes, watch other folders, capture the screen, camera or microphone, or use OS-level monitoring.
 
