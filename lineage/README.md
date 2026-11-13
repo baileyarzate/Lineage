@@ -92,8 +92,8 @@ Students follow realistic profiles: honest multi-session work, a last-night cram
 ## Dashboard
 
 - **Courses**: every assignment with how many students are waiting for review.
-- **Assignment**: a sortable triage table, filtered to *Needs review* (any alert, or under 70% written in Lineage). Mark students *Cleared* or *Follow up* to work through the queue.
-- **Student**: summary, flags (click to jump to that moment), private review notes, then the replay:
+- **Assignment**: a sortable triage table, filtered to *Needs review* (any alert, or under 70% either written in Lineage or pasted with a citation). Each row shows its flag counts and the strongest reason in words ("AI agent ran", "Uncited paste", "Work before joining"). Mark students *Cleared* or *Follow up* to work through the queue; coming back to the list keeps your place.
+- **Student**: summary, flags (strongest first; click to jump to that moment), private review notes, then the replay. Pressing Play or stepping scrolls the replay into view, sized so the timeline and the code fit in one window:
   - an **overview timeline** of the whole history (drag to scroll fast; triangles mark pastes and disk writes), and a **zoomed track** for fine steps
   - a **file tree** of the whole project, each file colored by where its code came from; untouched starter files are dimmed
   - **code with a minimap**, where colored marks show where the unattributed code is

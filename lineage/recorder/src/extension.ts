@@ -207,7 +207,9 @@ async function cite(uri: vscode.Uri, file: string, text: string, off: number, pa
 		const comment = citationComment(doc.languageId, ref);
 		let commented = false;
 		if (comment) {
-			const line = doc.lineAt(doc.positionAt(at).line);
+			// Pasted text often starts with blank lines: put the comment right above the first line of code.
+			const lead = text.length - text.trimStart().length;
+			const line = doc.lineAt(doc.positionAt(Math.min(at + lead, doc.getText().length)).line);
 			const above = line.lineNumber > 0 ? doc.lineAt(line.lineNumber - 1).text.trim() : '';
 			if (above !== comment) {
 				const indent = line.text.slice(0, line.firstNonWhitespaceCharacterIndex);

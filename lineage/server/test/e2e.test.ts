@@ -253,6 +253,12 @@ test('agents run in the Lineage terminal and agent traces are flagged', async ()
 		assert.equal(rep.flags.find((f: any) => f.code === 'agent_file')?.level, 'warn');
 		assert.equal(rep.agentRuns.length, 1);
 		assert.equal(rep.needsReview, true);
+		// Strongest evidence first, both in the flag list and in the short reasons the queue shows.
+		const order = rep.flags.filter((f: any) => f.level !== 'info').map((f: any) => f.code);
+		assert.deepEqual(order, ['agent_run', 'agent_trace', 'agent_file']);
+		assert.deepEqual(rep.reasons, ['AI agent ran', 'AI agent history', 'Agent file in project']);
+		const res = await fetch(`${base}/api/admin/students?assignment=cs1-hw1`, { headers: { 'x-admin-key': adminKey } });
+		assert.deepEqual((await res.json() as any[])[0].reasons, rep.reasons);
 	});
 });
 

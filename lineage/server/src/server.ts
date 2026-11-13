@@ -215,6 +215,7 @@ function studentRows(ctx: Ctx, assignment: string) {
 			alerts: r.flags.filter((f) => f.level === 'alert').length,
 			warnings: r.flags.filter((f) => f.level === 'warn').length,
 			needsReview: r.needsReview,
+			reasons: r.reasons,
 			review: reviews.get(student_id) ?? null,
 		};
 	});

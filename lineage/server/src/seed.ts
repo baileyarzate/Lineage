@@ -327,11 +327,11 @@ class Student {
 		this.generated.set('REFERENCES.md', refsText);
 		this.push({ kind: 'citation_file', file: 'REFERENCES.md', text: refsText }, between(4000, 15_000));
 
-		// Comment on its own line above where the paste starts, with the same indentation.
+		// Comment on its own line right above the first line of pasted code, with the same indentation.
 		const full = this.text(path)!;
-		const pasteAt = this.offset(path, item.idx);
+		const pasteAt = this.offset(path, item.idx) + (item.body.length - item.body.trimStart().length);
 		const lineStart = full.lastIndexOf('\n', pasteAt - 1) + 1;
-		const indent = item.body.match(/^[ \t]*/)![0];
+		const indent = full.slice(lineStart).match(/^[ \t]*/)![0];
 		const comment = `${indent}# Source: ${ref}\n`;
 		this.insertAt(path, lineStart, comment);
 		this.push({ kind: 'citation', file: path, off: lineStart, del: 0, text: comment }, between(100, 400));

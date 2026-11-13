@@ -17,6 +17,38 @@ const BIG_PASTE = 80; // chars: a few lines of code
 const PRE_JOIN_ALERT = 20; // non-whitespace chars: about one line of code written before joining
 const LATE_DELIVERY_MS = 10 * 60_000;
 
+/**
+ * Flag codes from most to least telling, with the short label the review queue shows.
+ * Flags are listed in this order so the strongest evidence is read first.
+ */
+export const FLAG_LABELS: Record<string, string> = {
+	chain_broken: 'Recording altered',
+	gap: 'Missing events',
+	submission_mismatch: 'Submission differs',
+	agent_run: 'AI agent ran',
+	agent_trace: 'AI agent history',
+	external_write: 'Written by another program',
+	pre_join: 'Work before joining',
+	big_paste: 'Uncited paste',
+	unobserved: 'Changed while closed',
+	programmatic: 'Edits with no input',
+	big_editor_edit: 'Large untyped edit',
+	save_mismatch: 'Edits not captured',
+	agent_file: 'Agent file in project',
+	cited_paste: 'Cited paste',
+	late_delivery: 'Late delivery',
+	no_starter: 'No starter code',
+};
+const FLAG_ORDER = Object.keys(FLAG_LABELS);
+const LEVEL_ORDER = { alert: 0, warn: 1, info: 2 };
+
+/** Short reasons a student needs a look, strongest first (alerts and warnings only). */
+export function reviewReasons(flags: Flag[], lowPct: boolean): string[] {
+	const out = [...new Set(flags.filter((f) => f.level !== 'info').map((f) => FLAG_LABELS[f.code] ?? f.code))];
+	if (!out.length && lowPct) out.push('Mostly not written in Lineage');
+	return out;
+}
+
 /** A student lands in the review queue with any alert, or when most of their code wasn't written in Lineage. */
 export const REVIEW_BELOW_PCT = 70;
 const REVIEW_MIN_WRITTEN = 50;
@@ -184,9 +216,14 @@ export function buildReport(db: DB, assignmentId: string, studentId: string) {
 		}
 	}
 
+	// Strongest evidence first: alerts before warnings before notes, then by kind, then in time order.
+	const rank = (f: Flag) => [LEVEL_ORDER[f.level], FLAG_ORDER.indexOf(f.code) < 0 ? 99 : FLAG_ORDER.indexOf(f.code), f.at ?? 0];
+	flags.sort((a, b) => { const x = rank(a), y = rank(b); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; });
+
 	const scope = submitted ? new Set(Object.keys(submitted).filter((p) => !mismatched.includes(p))) : undefined;
 	const summary = summarize(state, scope);
 	const alerts = flags.filter((f) => f.level === 'alert').length;
+	const lowPct = summary.written >= REVIEW_MIN_WRITTEN && summary.accountedPct < REVIEW_BELOW_PCT;
 
 	return {
 		assignmentId,
@@ -200,7 +237,8 @@ export function buildReport(db: DB, assignmentId: string, studentId: string) {
 		mismatched,
 		summary,
 		// Cited pastes count as accounted for: a course that allows AI with citation shouldn't fill the queue with students who followed the rules.
-		needsReview: alerts > 0 || (summary.written >= REVIEW_MIN_WRITTEN && summary.accountedPct < REVIEW_BELOW_PCT),
+		needsReview: alerts > 0 || lowPct,
+		reasons: reviewReasons(flags, lowPct),
 		flags,
 		agentRuns,
 		citations: dedupeCitations(citations),

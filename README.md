@@ -80,11 +80,11 @@ You start from your courses, open an assignment, work through the students who n
 <table>
 <tr>
 <td width="50%"><img src="lineage/docs/courses.png" alt="Courses page with assignment cards showing how many students need review" /></td>
-<td width="50%"><img src="lineage/docs/review-queue.png" alt="Assignment review queue: two students flagged, sortable by percentage written in Lineage" /></td>
+<td width="50%"><img src="lineage/docs/review-queue.png" alt="Assignment review queue: three students flagged, each with the main reason (AI agent ran, uncited paste, work before joining), sortable by percentage written in Lineage" /></td>
 </tr>
 <tr>
 <td><b>Courses.</b> Each assignment shows how many students are waiting for review.</td>
-<td><b>Review queue.</b> Starts with just the flagged students. Mark each one <i>Clear</i> or <i>Follow up</i> and the list gets shorter.</td>
+<td><b>Review queue.</b> Starts with just the flagged students and says why each one is there. Mark each one <i>Clear</i> or <i>Follow up</i> and the list gets shorter.</td>
 </tr>
 </table>
 

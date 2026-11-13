@@ -118,15 +118,19 @@ async function api(path, body) {
 		headers: { 'x-admin-key': adminKey ?? '', ...(body ? { 'content-type': 'application/json' } : {}) },
 		body: body ? JSON.stringify(body) : undefined,
 	});
-	if (res.status === 401) { showLogin(); throw new Error('unauthorized'); }
+	if (res.status === 401) { showLogin(adminKey ? "That key wasn't accepted. Check it for typos or extra spaces." : ''); throw new Error('unauthorized'); }
 	const data = await res.json();
 	if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
 	return data;
 }
 
-function showLogin() {
+function showLogin(error = '') {
 	$('#view').innerHTML = '';
 	$('#login').hidden = false;
+	$('#loginError').textContent = error;
+	document.title = 'Sign in · Lineage';
+	$('#keyInput').focus();
+	$('#keyInput').select();
 }
 
 $('#loginForm').addEventListener('submit', (e) => {
@@ -164,8 +168,13 @@ function assignmentMeta(ov, id) {
 
 let active; // current view, so it can clean up listeners
 let routeSeq = 0;
+let routeKey; // which page is showing, e.g. "assignment:cs101-hw3"
+const scrollMemo = new Map(); // where each list page was scrolled to, so coming back lands in the same place
+
+const setTitle = (...parts) => { document.title = [...parts, 'Lineage'].join(' · '); };
 
 async function route() {
+	if (routeKey) scrollMemo.set(routeKey, window.scrollY);
 	active?.destroy?.();
 	active = undefined;
 	if (!adminKey && !DEMO) return showLogin();
@@ -173,14 +182,26 @@ async function route() {
 	const seq = ++routeSeq;
 	const alive = () => seq === routeSeq;
 	const r = parseRoute();
+	const key = `${r.view}:${r.assignment ?? ''}:${r.student ?? ''}`;
 	const view = $('#view');
+	// Student reports can be large: show progress if the page takes a moment.
+	const busy = setTimeout(() => document.body.classList.add('loading'), 150);
 	try {
 		if (r.view === 'home') active = await homeView(view, alive);
 		else if (r.view === 'assignment') active = await assignmentView(view, r.assignment, alive);
 		else active = await studentView(view, r, alive);
-		window.scrollTo(0, 0);
+		if (!alive()) return;
+		window.scrollTo(0, r.view === 'student' ? 0 : scrollMemo.get(key) ?? 0);
+		routeKey = key;
 	} catch (err) {
-		if (err.message !== 'unauthorized' && alive()) view.innerHTML = `<div class="page"><div class="empty">${esc(err.message)}<br><br><a href="#/">Back to courses</a></div></div>`;
+		if (err.message !== 'unauthorized' && alive()) {
+			routeKey = undefined;
+			setTitle('Not found');
+			view.innerHTML = `<div class="page"><div class="empty">${esc(err.message)}<br><br><a href="#/">Back to courses</a></div></div>`;
+		}
+	} finally {
+		clearTimeout(busy);
+		if (alive()) document.body.classList.remove('loading');
 	}
 }
 window.addEventListener('hashchange', route);
@@ -203,6 +224,7 @@ async function homeView(el, alive) {
 		.map((c) => ({ c, list: ov.assignments.filter((a) => (a.course_id ?? null) === c.id) }))
 		.filter((g) => g.list.length);
 	const toReview = ov.assignments.reduce((n, a) => n + a.needsReview, 0);
+	setTitle('Courses');
 	el.innerHTML = `
 		<div class="page">
 			<div class="pagehead">
@@ -260,6 +282,9 @@ async function assignmentView(el, aid, alive) {
 	const { a, title, courseName } = assignmentMeta(ov, aid);
 	const saved = JSON.parse(safeGet(sessionStorage, `lineage.table:${aid}`) ?? 'null');
 	const ui = saved ?? { filter: students.some(FILTERS.review.test) ? 'review' : 'all', q: '', sort: 'pct', dir: 1 };
+	const lastOpened = safeGet(sessionStorage, `lineage.last:${aid}`);
+	const seen = SOURCES.filter((k) => k !== 'starter' && k !== 'citation' && students.some((st) => st.summary.counts[k]));
+	setTitle(title);
 
 	el.innerHTML = `
 		<div class="page">
@@ -267,7 +292,7 @@ async function assignmentView(el, aid, alive) {
 				<div>${crumbs([['Courses', '#/'], [courseName]])}<h1>${esc(title)}</h1>
 					<p class="meta">${esc(dueLabel(a.due_at))}${a.due_at ? ' · ' : ''}${students.length} joined · ${students.filter((s) => s.submittedAt).length} submitted</p></div>
 				<div class="headside">
-					${a.join_code ? `<div class="meta">Join code <span class="joincode">${esc(a.join_code)}</span></div>` : ''}
+					${a.join_code ? `<div class="meta">Join code <button class="joincode" title="Copy the join code">${esc(a.join_code)}</button></div>` : ''}
 					<div class="meta starter">${a.starter_version
 						? `Starter code <span class="pill ok">version ${a.starter_version}</span>${DEMO ? '' : ' <button class="link" data-upload>Upload new version</button>'}`
 						: `<span class="pill warn" title="Without it, work done before a student joins counts as starter code">No starter code</span>${DEMO ? '' : ' <button class="link" data-upload>Upload starter folder</button>'}`}
@@ -286,7 +311,8 @@ async function assignmentView(el, aid, alive) {
 				</tr></thead>
 				<tbody></tbody>
 			</table></div>
-			<p class="meta" style="margin-top:10px">“Needs review” means any alert, or under 70% of the student's code either written in Lineage or pasted with a citation. Clearing a student removes them from the queue.</p>
+			${seen.length ? `<div class="legend tablelegend">${seen.map((k) => `<span><i style="background:var(--${k})"></i>${LABEL[k]}</span>`).join('')}</div>` : ''}
+			<p class="meta">“Needs review” means any alert, or under 70% of the student's code either written in Lineage or pasted with a citation. Clearing a student removes them from the queue.</p>
 		</div>`;
 
 	const rows = () => {
@@ -310,22 +336,23 @@ async function assignmentView(el, aid, alive) {
 		});
 		const list = rows();
 		$('tbody', el).innerHTML = list.length ? list.map((s) => `
-			<tr data-id="${esc(s.studentId)}" tabindex="0">
-				<td><b>${esc(s.studentId)}</b></td>
+			<tr data-id="${esc(s.studentId)}" class="${s.studentId === lastOpened ? 'last' : ''}">
+				<td><a class="rowlink" href="${hrefStudent(aid, s.studentId)}">${esc(s.studentId)}</a></td>
 				<td><div class="pctcell"><span class="pct ${s.summary.written && (s.summary.accountedPct ?? s.summary.authoredPct) < 70 ? 'low' : ''}">${s.summary.written ? s.summary.authoredPct + '%' : '–'}</span>${bar(s.summary.counts)}${s.summary.citedPct ? `<span class="meta" title="Pasted from outside with a citation">+${s.summary.citedPct}% cited</span>` : ''}</div></td>
-				<td>${s.alerts ? `<span class="badge alert" title="alerts">${s.alerts}</span> ` : ''}${s.warnings ? `<span class="badge warn" title="warnings">${s.warnings}</span>` : ''}${!s.alerts && !s.warnings ? '<span class="meta">–</span>' : ''}</td>
+				<td>${flagCell(s)}</td>
 				<td class="num">${s.sessions}</td>
 				<td class="num">${fmtMinutes(s.activeMinutes)}</td>
 				<td>${s.submittedAt ? fmtDateTime(s.submittedAt) : '<span class="meta">Not submitted</span>'}</td>
 				<td>${reviewPill(s.review)}</td>
 			</tr>`).join('') : `<tr><td colspan="7"><div class="empty">${ui.filter === 'review' ? 'Nothing left to review.' : 'No students match.'}</div></td></tr>`;
 		$$('tbody tr[data-id]', el).forEach((tr) => {
-			const open = () => {
+			// The name is a real link (keyboard, open in a new tab). A plain click anywhere on the row follows it.
+			tr.onclick = (e) => {
 				saveQueue(aid, FILTERS[ui.filter].label, list.map((s) => s.studentId));
+				safeSet(sessionStorage, `lineage.last:${aid}`, tr.dataset.id);
+				if (e.target.closest('a') || e.metaKey || e.ctrlKey || e.shiftKey || getSelection()?.toString()) return;
 				location.hash = hrefStudent(aid, tr.dataset.id);
 			};
-			tr.onclick = open;
-			tr.onkeydown = (e) => { if (e.key === 'Enter') open(); };
 		});
 	};
 
@@ -336,6 +363,12 @@ async function assignmentView(el, aid, alive) {
 		render();
 	});
 	$('input[type=search]', el).oninput = (e) => { ui.q = e.target.value; render(); };
+	const code = $('button.joincode', el);
+	if (code) code.onclick = async () => {
+		try { await navigator.clipboard.writeText(a.join_code); } catch { return; }
+		code.textContent = 'Copied';
+		setTimeout(() => { code.textContent = a.join_code; }, 1200);
+	};
 	const picker = $('input[data-starter]', el);
 	if ($('[data-upload]', el)) $('[data-upload]', el).onclick = () => picker.click();
 	picker.onchange = async () => {
@@ -392,6 +425,16 @@ function citationsPanel(report) {
 		</div>`;
 }
 
+/** Flag counts plus the strongest reason in words, so the queue says why without opening the student. */
+function flagCell(s) {
+	if (!s.alerts && !s.warnings) return '<span class="meta">–</span>';
+	const reasons = s.reasons ?? [];
+	const more = reasons.length - 1;
+	return `<span class="flagcell" title="${esc(reasons.join(' · '))}">
+		${s.alerts ? `<span class="badge alert">${s.alerts}</span>` : ''}${s.warnings ? `<span class="badge warn">${s.warnings}</span>` : ''}
+		${reasons.length ? `<span class="reason">${esc(reasons[0])}${more > 0 ? ` <span class="meta">+${more}</span>` : ''}</span>` : ''}</span>`;
+}
+
 function reviewPill(review) {
 	if (review?.status === 'cleared') return '<span class="pill ok">Cleared</span>';
 	if (review?.status === 'follow_up') return '<span class="pill warn">Follow-up</span>';
@@ -429,6 +472,7 @@ async function studentView(el, r, alive) {
 	const next = idx >= 0 && idx < queue.ids.length - 1 ? queue.ids[idx + 1] : null;
 	const s = report.summary;
 	const authored = [...AUTHORED].reduce((n, k) => n + s.counts[k], 0);
+	setTitle(sid, title);
 
 	el.innerHTML = `
 		<div class="page wide">
@@ -448,11 +492,11 @@ async function studentView(el, r, alive) {
 						${s.counts.paste_cited ? `<div class="stat"><div class="v">${s.citedPct}%</div><div class="k">pasted with a citation</div></div>` : ''}
 						<div class="stat"><div class="v">${num(s.written - authored - (s.counts.paste_cited ?? 0))}</div><div class="k">unattributed chars</div></div>
 						<div class="stat"><div class="v">${fmtMinutes(report.activeMinutes)}</div><div class="k">active · ${report.sessions} session${report.sessions === 1 ? '' : 's'}</div></div>
-						<div class="stat"><div class="v ${report.chainOk ? '' : 'bad'}">${report.chainOk ? 'Intact' : 'Broken'}</div><div class="k">hash chain</div></div>
+						${report.chainOk ? '' : '<div class="stat"><div class="v bad">Altered</div><div class="k">recording (see flags)</div></div>'}
 					</div>
 					${bar(s.counts)}
 					<div class="legend">${SOURCES.filter((k) => s.counts[k]).map((k) => `<span><i style="background:var(--${k})"></i>${LABEL[k]} <b>${num(s.counts[k])}</b></span>`).join('')}</div>
-					<div class="meta">${report.submittedAt ? `Submitted ${fmtDateTime(report.submittedAt)}.` : 'Not submitted yet.'} Counts exclude whitespace and Lineage's own citation text.</div>
+					<div class="meta">${report.submittedAt ? `Submitted ${fmtDateTime(report.submittedAt)}.` : 'Not submitted yet.'}${report.chainOk ? ' <span title="Every recorded event is linked to the one before it by a hash chain, and the chain is unbroken: nothing was edited or removed.">Recording intact ✓.</span>' : ''} Counts exclude whitespace and Lineage's own citation text.</div>
 				</div>
 				<div class="panel">
 					<h3>Flags (${report.flags.length})</h3>
@@ -461,28 +505,27 @@ async function studentView(el, r, alive) {
 				<div class="panel review">
 					<h3>Your review</h3>
 					<div class="review-buttons">
-						<button data-status="cleared">✓ Clear</button>
-						<button data-status="follow_up">⚑ Follow up</button>
+						<button data-status="cleared" title="No concerns. Takes this student out of the review queue.">✓ Clear</button>
+						<button data-status="follow_up" title="Needs a conversation. Keeps this student under Follow-up.">⚑ Follow up</button>
 					</div>
-					<textarea placeholder="Private note (saved automatically)"></textarea>
+					<textarea placeholder="Private note (saved automatically)" aria-label="Private note"></textarea>
 					<div class="meta review-saved"></div>
 				</div>
 			</div>
 			${citationsPanel(report)}
 			<div id="player"></div>
-			<div class="hints">
-				<span><kbd>←</kbd> <kbd>→</kbd> step one change</span><span><kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd> step 10</span>
-				<span><kbd>Space</kbd> play / pause</span><span><kbd>-</kbd> <kbd>+</kbd> zoom timeline</span><span><kbd>[</kbd> <kbd>]</kbd> previous / next student</span>
-			</div>
 		</div>`;
 
 	// ---- review status ----
 	let review = report.review ?? { status: null, note: '' };
 	const note = $('.review textarea', el);
 	note.value = review.note ?? '';
+	// Hold on to this page's own elements: a save can finish after the next student has replaced the view.
+	const reviewButtons = $$('.review-buttons button', el);
+	const reviewSaved = $('.review-saved', el);
 	const paintReview = (msg) => {
-		$$('.review-buttons button', el).forEach((b) => b.className = b.dataset.status === review.status ? `on ${review.status}` : '');
-		$('.review-saved', el).textContent = msg ?? (review.updated_at ? `Updated ${fmtDateTime(review.updated_at)}` : '');
+		reviewButtons.forEach((b) => { b.className = b.dataset.status === review.status ? `on ${review.status}` : ''; b.setAttribute('aria-pressed', String(b.dataset.status === review.status)); });
+		reviewSaved.textContent = msg ?? (review.updated_at ? `Updated ${fmtDateTime(review.updated_at)}` : '');
 	};
 	const saveReview = async (patch) => {
 		review = { ...review, ...patch };
@@ -492,8 +535,12 @@ async function studentView(el, r, alive) {
 		overview = undefined; // queue counts changed
 		paintReview('Saved');
 	};
-	$$('.review-buttons button', el).forEach((b) => b.onclick = () => saveReview({ status: review.status === b.dataset.status ? null : b.dataset.status }));
-	note.onchange = () => saveReview({ note: note.value });
+	reviewButtons.forEach((b) => b.onclick = () => saveReview({ status: review.status === b.dataset.status ? null : b.dataset.status }));
+	// Save the note shortly after typing stops, and right away when leaving the box.
+	let noteTimer;
+	const saveNote = () => { clearTimeout(noteTimer); if (note.value !== (review.note ?? '')) saveReview({ note: note.value }); };
+	note.oninput = () => { clearTimeout(noteTimer); noteTimer = setTimeout(saveNote, 800); };
+	note.onchange = saveNote;
 	paintReview();
 
 	// ---- replay ----
@@ -503,7 +550,7 @@ async function studentView(el, r, alive) {
 	$$('[data-flag]', el).forEach((b) => b.onclick = () => {
 		const f = report.flags[Number(b.dataset.flag)];
 		player.seekToTime(f.at, f.file);
-		$('#player').scrollIntoView({ behavior: 'smooth', block: 'start' });
+		player.reveal(true);
 	});
 	player.seek(r.frame != null ? Number(r.frame) : player.frames.length, 'center');
 
@@ -513,7 +560,7 @@ async function studentView(el, r, alive) {
 		if (e.key === ']' && next) location.hash = hrefStudent(aid, next);
 	};
 	document.addEventListener('keydown', onKey);
-	return { destroy() { player.destroy(); document.removeEventListener('keydown', onKey); } };
+	return { destroy() { saveNote(); player.destroy(); document.removeEventListener('keydown', onKey); } };
 }
 
 // ============================================================================
@@ -631,7 +678,10 @@ class Player {
 					<button data-a="play" class="play" title="Play / pause (Space)">▶ Play</button>
 					<button data-a="next" title="Next change (→)" aria-label="Next change">▶</button>
 					<button data-a="last" title="Final state (End)" aria-label="Final state">⏭</button>
-					<div class="seg" role="group" aria-label="Playback speed">${SPEEDS.map(([l, v]) => `<button data-speed="${v}" class="${v === this.speed ? 'on' : ''}">${l}</button>`).join('')}</div>
+					<div class="seg" role="group" aria-label="Playback speed">${SPEEDS.map(([l, v]) => `<button data-speed="${v}" class="${v === this.speed ? 'on' : ''}" title="${v ? `Play at ${l} the student's pace` : 'Play as fast as possible'}">${l}</button>`).join('')}</div>
+					<span class="keys" title="← → step one change · Shift + ← → step 10 · Home / End first / last · Space play or pause · - + zoom the timeline · [ ] previous / next student">
+						<span><kbd>←</kbd><kbd>→</kbd> step</span><span><kbd>Space</kbd> play</span><span><kbd>[</kbd><kbd>]</kbd> student</span>
+					</span>
 					<span class="counter"></span>
 				</div>
 				<div class="track ov" title="Whole history. Click or drag to jump anywhere."><canvas></canvas><div class="win"></div><div class="head"></div></div>
@@ -732,7 +782,20 @@ class Player {
 
 	// ---- transport ----
 
+	/**
+	 * Bring the replay into view when most of the code is off screen (or always, with `force`),
+	 * so pressing Play or stepping from the top of the page shows what's changing.
+	 */
+	reveal(force = false) {
+		const ws = $('.workspace', this.root).getBoundingClientRect();
+		const visible = Math.min(ws.bottom, innerHeight) - Math.max(ws.top, 0);
+		if (!force && visible >= Math.min(ws.height, innerHeight) * 0.6) return;
+		const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		$('.player', this.root).scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+	}
+
 	action(a, big) {
+		if (a !== 'play' || !this.playing) this.reveal();
 		if (a === 'play') return this.playing ? this.pause() : this.play();
 		this.pause();
 		const step = big ? 10 : 1;
