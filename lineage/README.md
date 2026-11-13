@@ -21,7 +21,9 @@ Each change is classified by where it came from:
 | editor | Autocomplete, formatting, undo/redo right after user input | Authored |
 | paste_internal | Pasted text that was copied inside the editor | Authored |
 | starter | Matches the instructor's starter code when the student joined | Excluded |
-| paste_external | Pasted from outside the editor | Unattributed |
+| citation | Citation comments and `REFERENCES.md`, written by Lineage | Excluded |
+| paste_cited | Pasted from outside, and the student cited the source | Disclosed |
+| paste_external | Pasted from outside the editor, no citation | Unattributed |
 | external_write | **Written to disk by another program** (Claude Code, Codex, scripts, other editors) | Unattributed |
 | programmatic | Edited in the editor with no user input nearby (e.g. another extension) | Unattributed |
 | unobserved | Not recorded: changed while Lineage wasn't running, or already there when the student joined but not in the starter code | Unattributed |
@@ -34,6 +36,8 @@ The report replays the full history to rebuild every file with a source attached
 - compares the replay with the student's submitted file hashes
 - checks the replay against content hashes recorded at every save
 - flags disk writes by other programs, large external pastes, edits with no user input, changes made while Lineage was closed, work done before joining, and late delivery
+
+**Citations.** After an outside paste of about a line or more, the recorder offers to cite it (a notification, never a modal). The student gives a link or picks a tool; `recorder/src/citations.ts` turns that into an IEEE reference without fetching anything. Lineage writes `REFERENCES.md` and a comment above the paste, and records both as their own event kinds (`citation_file`, `citation`) so they aren't mistaken for outside writes. A `cite` event links the source to the paste's sequence number. The report includes `authoredPct` (written in Lineage), `citedPct`, and `accountedPct` (both together); the review queue uses `accountedPct`. Set `"citations": { "prompt": false }` in `.lineage.json` to turn the prompt off.
 
 **Starter code.** The instructor uploads the starter folder once (dashboard: **Upload starter folder** on the assignment page; CLI: `--starter <folder>` or `npm run set-starter -- <id> <folder>`). The server stores every file and compares each student's first snapshot against it. Matching text counts as starter code; anything else is flagged `pre_join` (an alert from about one line of code). Each upload is a new version, and students match whichever version they started from, so fixing the starter mid-assignment doesn't flag anyone. Without an upload, everything present at join counts as starter code and the report says so.
 
@@ -108,7 +112,7 @@ Set `LINEAGE_PUBLIC_URL=https://your-server` so the printed `.lineage.json` poin
 Put a `.lineage.json` at the root of the starter repo:
 
 ```json
-{ "assignmentId": "demo-hw", "server": "http://localhost:4747" }
+{ "assignmentId": "demo-hw", "server": "http://localhost:4747", "citations": { "prompt": true } }
 ```
 
 ## Layout
@@ -123,7 +127,8 @@ Put a `.lineage.json` at the root of the starter repo:
 ## Run the tests
 
 ```sh
-cd lineage/server && npm test
+cd lineage/server && npm test      # server, replay and report
+cd lineage/recorder && npm test    # citation formatting
 ```
 
 ## Known limitations (MVP)

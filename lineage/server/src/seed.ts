@@ -155,7 +155,7 @@ const P2: Omit<AssignmentSpec, 'profiles'> = {
 
 // ---- student simulation -------------------------------------------------------
 
-type Profile = 'honest' | 'crammer' | 'borderline' | 'paster' | 'agent' | 'scripted' | 'partial' | 'started' | 'prejoin';
+type Profile = 'honest' | 'crammer' | 'borderline' | 'paster' | 'agent' | 'scripted' | 'partial' | 'started' | 'prejoin' | 'citer';
 
 interface Item { file: FileSpec; idx: number; body: string }
 
@@ -165,6 +165,8 @@ class Student {
 	private cur!: { id: string; seq: number; prev: string; events: any[] };
 	private segs = new Map<string, string[]>();
 	private exists = new Set<string>();
+	private generated = new Map<string, string>(); // files Lineage writes (REFERENCES.md)
+	private refs: string[] = [];
 	t = 0;
 
 	constructor(spec: AssignmentSpec) {
@@ -180,11 +182,11 @@ class Student {
 	}
 
 	text(path: string) {
-		return this.segs.get(path)?.join('') ?? this.spec.extras[path];
+		return this.segs.get(path)?.join('') ?? this.generated.get(path) ?? this.spec.extras[path];
 	}
 
 	files(): string[] {
-		return [...Object.keys(this.spec.extras), '.lineage.json', ...this.exists].sort();
+		return [...Object.keys(this.spec.extras), '.lineage.json', ...this.exists, ...this.generated.keys()].sort();
 	}
 
 	/** What the instructor hands out: every file as it is before any work. */
@@ -310,6 +312,47 @@ class Student {
 		this.save(item.file.path);
 	}
 
+	/** Paste from outside, then cite it the way the recorder does: REFERENCES.md, a comment above the code, a cite event. */
+	pasteCited(item: Item, source: { kind: string; author?: string; title: string; site?: string; url?: string }) {
+		this.pasteExternal(item);
+		const pasteSeq = this.cur.seq - 2; // pasteExternal ends with the paste, then a save
+		const path = item.file.path;
+		const accessed = new Date(this.t);
+		const months = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'];
+		const date = `${months[accessed.getMonth()]} ${accessed.getDate()}, ${accessed.getFullYear()}`;
+		const n = this.refs.length + 1;
+		const ref = `[${n}] ${source.author ? source.author + ', ' : ''}"${source.title}," ${source.site ? source.site + '. ' : ''}Accessed: ${date}. [Online]. Available: ${source.url}`;
+		this.refs.push(ref);
+		const refsText = `# References\n\nSources for code that came from outside this project, in IEEE style. Lineage adds an entry each time you cite a paste.\n\n${this.refs.join('\n')}\n`;
+		this.generated.set('REFERENCES.md', refsText);
+		this.push({ kind: 'citation_file', file: 'REFERENCES.md', text: refsText }, between(4000, 15_000));
+
+		// Comment on its own line above where the paste starts, with the same indentation.
+		const full = this.text(path)!;
+		const pasteAt = this.offset(path, item.idx);
+		const lineStart = full.lastIndexOf('\n', pasteAt - 1) + 1;
+		const indent = item.body.match(/^[ \t]*/)![0];
+		const comment = `${indent}# Source: ${ref}\n`;
+		this.insertAt(path, lineStart, comment);
+		this.push({ kind: 'citation', file: path, off: lineStart, del: 0, text: comment }, between(100, 400));
+		this.push({ kind: 'cite', file: path, paste: pasteSeq, n, ref, source, off: lineStart + comment.length, len: item.body.length }, 50);
+		this.save(path);
+	}
+
+	/** Insert text at an absolute offset in a file, keeping the segment bookkeeping right. */
+	private insertAt(path: string, off: number, text: string) {
+		const segs = this.segs.get(path)!;
+		let pos = 0;
+		for (let i = 0; i < segs.length; i++) {
+			if (off <= pos + segs[i].length) {
+				segs[i] = segs[i].slice(0, off - pos) + text + segs[i].slice(off - pos);
+				return;
+			}
+			pos += segs[i].length;
+		}
+		segs[segs.length - 1] += text;
+	}
+
 	/** A script feeding keystrokes: metronome rhythm, no typos, no pauses. */
 	typeScripted(item: Item) {
 		this.ensureFile(item);
@@ -420,6 +463,21 @@ function simulate(spec: AssignmentSpec, profile: Profile): { s: Student; submitt
 			s.endSession();
 			return { s, submitted: true };
 		}
+		case 'citer': {
+			// Allowed to use AI with citation: types most of it, pastes two helpers and cites both.
+			const picks = items.map((it, i) => ({ it, i })).filter(({ it }) => it.body.length >= 60).slice(-2).map(({ i }) => i);
+			const sources = [
+				{ kind: 'ai', author: 'OpenAI', title: 'ChatGPT', url: `https://chatgpt.com/share/${randomBytes(8).toString('hex')}` },
+				{ kind: 'qa', site: 'Stack Overflow', title: 'How do I count word frequencies in python', url: 'https://stackoverflow.com/questions/20510768/how-do-i-count-word-frequencies-in-python' },
+			];
+			const times = sessionTimes(spec, 3);
+			chunk(items.map((it, i) => ({ it, i })), times.length).forEach((group, gi) => {
+				s.startSession(times[gi]);
+				for (const { it, i } of group) picks.includes(i) ? s.pasteCited(it, sources[picks.indexOf(i)]) : s.typeHuman(it);
+				s.endSession();
+			});
+			return { s, submitted: true };
+		}
 		case 'prejoin': {
 			// Did most of the work (e.g. with an agent) before joining, then typed the rest in Lineage.
 			const cut = Math.ceil(items.length * 0.7);
@@ -458,9 +516,9 @@ createCourse(db, 'cs210', 'CS 210 · Data Structures & Algorithms');
 
 const rep = (p: Profile, n: number): Profile[] => Array(n).fill(p);
 const specs: AssignmentSpec[] = [
-	{ ...HW3, profiles: [...rep('honest', 7), 'prejoin', 'crammer', 'borderline', 'paster', 'agent', 'honest', 'partial'] },
+	{ ...HW3, profiles: [...rep('honest', 6), 'citer', 'prejoin', 'crammer', 'borderline', 'paster', 'agent', 'honest', 'partial'] },
 	{ ...HW4, profiles: [...rep('honest', 3), ...rep('partial', 7), ...rep('started', 2), 'agent', 'paster'] },
-	{ ...P2, profiles: [...rep('honest', 7), 'agent', 'agent', 'crammer', 'borderline'] },
+	{ ...P2, profiles: [...rep('honest', 6), 'citer', 'agent', 'agent', 'crammer', 'borderline'] },
 ];
 
 let totalEvents = 0;

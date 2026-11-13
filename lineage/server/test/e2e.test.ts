@@ -332,3 +332,79 @@ test('starter code: work done before joining is caught, and starter updates keep
 		assert.ok(cheat.summary.counts.starter >= 'defadd(a,b):"""Returna+b."""'.length);
 	});
 });
+
+test('citations: a cited paste is disclosed, an uncited one is flagged, and Lineage\'s own additions are left out', async () => {
+	await withServer(async ({ base, adminKey, joinCode }) => {
+		const { body } = await post(base, '/api/join', { assignmentId: 'cs1-hw1', joinCode, studentId: 'cara' });
+		const r = new FakeRecorder(base, body.token, body.publicKey);
+		r.push({ kind: 'session', app: 'test' });
+		r.push({ kind: 'baseline', file: 'main.py', text: '', initial: true });
+
+		let text = '';
+		const typed = 'def main():\n    words = load_words("sample.txt")\n    print(len(words))\n';
+		r.type('main.py', 0, typed);
+		text += typed;
+
+		// Paste from ChatGPT, then cite it: Lineage inserts a comment above the paste and writes REFERENCES.md.
+		const helper = 'def load_words(path):\n    with open(path) as f:\n        return [w.strip(".,!?").lower() for w in f.read().split()]\n';
+		const pasteSeq = r.seq;
+		r.push({ kind: 'paste_external', file: 'main.py', off: 0, del: 0, text: helper });
+		text = helper + text;
+		const ref = '[1] OpenAI, "ChatGPT," Accessed: Nov. 12, 2026. [Online]. Available: https://chatgpt.com/share/abc';
+		const refs = `# References\n\n${ref}\n`;
+		r.push({ kind: 'citation_file', file: 'REFERENCES.md', text: refs }, 3000);
+		const comment = `# Source: ${ref}\n`;
+		r.push({ kind: 'citation', file: 'main.py', off: 0, del: 0, text: comment });
+		text = comment + text;
+		r.push({ kind: 'cite', file: 'main.py', paste: pasteSeq, n: 1, ref, source: { kind: 'ai', author: 'OpenAI', title: 'ChatGPT', url: 'https://chatgpt.com/share/abc' }, off: comment.length, len: helper.length });
+
+		// A second paste nobody cites.
+		const extra = 'def longest(words):\n    return max(words, key=len) if words else ""\n\n# end of helpers\n';
+		r.push({ kind: 'paste_external', file: 'main.py', off: text.length, del: 0, text: extra }, 5000);
+		text += extra;
+		r.push({ kind: 'save', file: 'main.py', sha256: sha256(text) });
+		assert.equal((await r.flush()).status, 200);
+		assert.equal((await r.submit({ 'main.py': text, 'REFERENCES.md': refs })).status, 200);
+
+		const rep = await report(base, adminKey, 'cara');
+		assert.equal(rep.chainOk, true);
+		assert.deepEqual(rep.mismatched, [], 'REFERENCES.md and the comment are part of the replay, so the submission matches');
+		const nonWs = (s: string) => s.replace(/\s/g, '').length;
+		assert.equal(rep.summary.counts.paste_cited, nonWs(helper));
+		assert.equal(rep.summary.counts.paste_external, nonWs(extra));
+		assert.equal(rep.summary.counts.citation, nonWs(comment) + nonWs(refs));
+		assert.equal(rep.summary.written, nonWs(typed) + nonWs(helper) + nonWs(extra), 'citation text counts toward nothing');
+		assert.ok(rep.summary.accountedPct > rep.summary.authoredPct);
+
+		const cited = rep.flags.find((f: any) => f.code === 'cited_paste');
+		assert.equal(cited?.level, 'info');
+		assert.match(cited.message, /cited as \[1\] \(ChatGPT\)/);
+		assert.ok(!rep.flags.some((f: any) => f.code === 'big_paste' && f.message.includes(String(helper.length))));
+		assert.ok(rep.flags.some((f: any) => f.code === 'programmatic') === false, 'the inserted comment is not an unexplained edit');
+
+		assert.equal(rep.citations.length, 1);
+		assert.equal(rep.citations[0].ref, ref);
+		assert.deepEqual(rep.citations[0].uses.map((u: any) => [u.file, u.forPaste]), [['main.py', true]]);
+		// The paste event the dashboard replays carries the citation.
+		assert.equal(rep.events.find((e: any) => e.seq === pasteSeq).cite, 1);
+	});
+});
+
+test('citations: a student whose outside code is all cited stays out of the review queue', async () => {
+	await withServer(async ({ base, adminKey, joinCode }) => {
+		const { body } = await post(base, '/api/join', { assignmentId: 'cs1-hw1', joinCode, studentId: 'dev' });
+		const r = new FakeRecorder(base, body.token, body.publicKey);
+		r.push({ kind: 'session', app: 'test' });
+		r.push({ kind: 'baseline', file: 'a.py', text: '', initial: true });
+		r.type('a.py', 0, 'x = 1\n');
+		const big = 'def solve(grid):\n    seen = set()\n    for row in grid:\n        for cell in row:\n            seen.add(cell)\n    return len(seen)\n';
+		const seq = r.seq;
+		r.push({ kind: 'paste_external', file: 'a.py', off: 6, del: 0, text: big });
+		r.push({ kind: 'cite', file: 'a.py', paste: seq, n: 1, ref: '[1] Anthropic, "Claude," Accessed: Nov. 12, 2026. Generative AI tool; no shared link provided.', source: { kind: 'ai', author: 'Anthropic', title: 'Claude' } });
+		assert.equal((await r.flush()).status, 200);
+
+		const rep = await report(base, adminKey, 'dev');
+		assert.ok(rep.summary.authoredPct < 70, 'most of it still was not written in Lineage');
+		assert.equal(rep.needsReview, false, 'but all of it is cited');
+	});
+});

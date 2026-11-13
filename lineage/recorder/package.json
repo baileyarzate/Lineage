@@ -38,6 +38,11 @@
         "command": "lineage.status",
         "title": "Show Recording Status",
         "category": "Lineage"
+      },
+      {
+        "command": "lineage.citeSelection",
+        "title": "Cite Selection\u2026",
+        "category": "Lineage"
       }
     ],
     "keybindings": [
@@ -64,11 +69,27 @@
         "mac": "cmd+x",
         "when": "editorTextFocus && !editorReadonly"
       }
-    ]
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "lineage.citeSelection",
+          "when": "lineage.recording && editorHasSelection",
+          "group": "9_cutcopypaste@9"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "lineage.citeSelection",
+          "when": "lineage.recording"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p .",
-    "watch": "tsc -watch -p ."
+    "watch": "tsc -watch -p .",
+    "test": "node --test \"test/**/*.test.ts\""
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

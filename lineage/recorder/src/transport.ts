@@ -64,13 +64,14 @@ export class Transport {
 		return this.queue.length;
 	}
 
-	/** Add an event to the chain. `fields` must not contain seq/t/prev/hash. */
-	record(fields: Record<string, unknown>) {
+	/** Add an event to the chain and return its sequence number. `fields` must not contain seq/t/prev/hash. */
+	record(fields: Record<string, unknown>): number {
 		const body = { seq: this.seq++, t: Date.now(), ...fields, prev: this.prev };
 		const hash = hashEvent(this.prev, body);
 		this.prev = hash;
 		this.queue.push({ ...body, hash });
 		if (this.queue.length >= 500) void this.flush();
+		return body.seq;
 	}
 
 	/**

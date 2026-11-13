@@ -46,16 +46,20 @@ export function buildReport(db: DB, assignmentId: string, studentId: string) {
 	let chainOk = true;
 	const agentRuns: { agent: string; name: string; scope: string; start: number; end: number; session: number }[] = [];
 	const traces = new Map<string, any>(); // latest agent_trace per (name, where)
+	const citations: { n: number; ref: string; source: any; file: string; at: number; chars: number; forPaste: boolean; session: number }[] = [];
 
 	sessions.forEach((session, sessionIndex) => {
-		const rows = db.prepare('SELECT seq, server_t, json FROM events WHERE session_id = ? ORDER BY seq')
-			.all(session.id) as { seq: number; server_t: number; json: string }[];
+		const rows = (db.prepare('SELECT seq, server_t, json FROM events WHERE session_id = ? ORDER BY seq')
+			.all(session.id) as { seq: number; server_t: number; json: string }[]).map((r) => ({ ...r, ev: JSON.parse(r.json) }));
+		// Citations come after the paste they cite; index them so the paste can be labeled when it's replayed.
+		const citeFor = new Map<number, any>();
+		for (const { ev } of rows) if (ev.kind === 'cite' && Number.isInteger(ev.paste)) citeFor.set(ev.paste, ev);
 		let prev = genesis(session.id);
 		let expectedSeq = 0;
 		const open = new Map<string, (typeof agentRuns)[number]>();
 		let lastT = 0;
 		for (const row of rows) {
-			const ev = JSON.parse(row.json);
+			const ev = row.ev;
 			const { hash, ...body } = ev;
 			if (hashEvent(body.prev, body) !== hash || body.seq !== row.seq) {
 				chainOk = false;
@@ -82,6 +86,14 @@ export function buildReport(db: DB, assignmentId: string, studentId: string) {
 				if (ev.state === 'start') open.set(key, { agent: ev.agent, name: ev.name, scope: ev.scope, start: ev.t, end: ev.t, session: sessionIndex + 1 });
 				else if (open.has(key)) { const run = open.get(key)!; run.end = ev.t; agentRuns.push(run); open.delete(key); }
 			}
+			if (ev.kind === 'paste_external' && citeFor.has(ev.seq)) {
+				const c = citeFor.get(ev.seq); // set after the hash check above, so verification sees the original event
+				ev.cite = c.n;
+				ev.citeRef = c.ref;
+			}
+			if (ev.kind === 'cite') {
+				citations.push({ n: ev.n, ref: String(ev.ref ?? ''), source: ev.source ?? {}, file: ev.file, at: ev.t, chars: ev.len ?? 0, forPaste: Number.isInteger(ev.paste), session: sessionIndex + 1 });
+			}
 			if (ev.kind === 'agent_trace') {
 				const key = `${ev.name}:${ev.where}`;
 				if (!traces.has(key) || traces.get(key).lastActive < ev.lastActive) traces.set(key, ev);
@@ -104,7 +116,9 @@ export function buildReport(db: DB, assignmentId: string, studentId: string) {
 				}
 			}
 			if (ev.kind === 'paste_external' && (ev.text?.length ?? 0) >= BIG_PASTE) {
-				flags.push({ level: 'warn', code: 'big_paste', file: ev.file, at: ev.t, message: `Pasted ${ev.text.length} characters from outside the editor into ${ev.file}.` });
+				flags.push(ev.cite
+					? { level: 'info', code: 'cited_paste', file: ev.file, at: ev.t, message: `Pasted ${ev.text.length} characters from outside into ${ev.file}, cited as [${ev.cite}] ${sourceName(citeFor.get(ev.seq)?.source)}.` }
+					: { level: 'warn', code: 'big_paste', file: ev.file, at: ev.t, message: `Pasted ${ev.text.length} characters from outside the editor into ${ev.file}. No source was given.` });
 			}
 			if (ev.kind === 'edit_other' && (ev.text?.length ?? 0) >= BIG_PASTE) {
 				// Autocomplete/snippets are short. A big block here is usually a menu paste the keybinding didn't see.
@@ -185,9 +199,11 @@ export function buildReport(db: DB, assignmentId: string, studentId: string) {
 		submittedFiles: submitted ? Object.keys(submitted) : null,
 		mismatched,
 		summary,
-		needsReview: alerts > 0 || (summary.written >= REVIEW_MIN_WRITTEN && summary.authoredPct < REVIEW_BELOW_PCT),
+		// Cited pastes count as accounted for: a course that allows AI with citation shouldn't fill the queue with students who followed the rules.
+		needsReview: alerts > 0 || (summary.written >= REVIEW_MIN_WRITTEN && summary.accountedPct < REVIEW_BELOW_PCT),
 		flags,
 		agentRuns,
+		citations: dedupeCitations(citations),
 		events,
 	};
 }
@@ -205,6 +221,26 @@ function closest(candidates: { text: string }[], text: string) {
 		if (a + b > bestScore) { bestScore = a + b; best = c; }
 	}
 	return best;
+}
+
+/** "ChatGPT", "Stack Overflow: How do I…", "psf/requests on GitHub" */
+function sourceName(src: any): string {
+	if (!src) return '';
+	if (src.kind === 'ai') return `(${src.title})`;
+	if (src.kind === 'code' && src.author) return `(${src.author}/${src.title} on ${src.site ?? 'GitHub'})`;
+	if (src.site) return `(${src.site}: ${src.title})`;
+	return `(${src.title})`;
+}
+
+/** One entry per reference number, with every place it was used. */
+function dedupeCitations(list: { n: number; ref: string; source: any; file: string; at: number; chars: number; forPaste: boolean; session: number }[]) {
+	const byN = new Map<number, { n: number; ref: string; source: any; uses: { file: string; at: number; chars: number; forPaste: boolean; session: number }[] }>();
+	for (const c of list) {
+		const entry = byN.get(c.n) ?? { n: c.n, ref: c.ref, source: c.source, uses: [] };
+		entry.uses.push({ file: c.file, at: c.at, chars: c.chars, forPaste: c.forPaste, session: c.session });
+		byN.set(c.n, entry);
+	}
+	return [...byN.values()].sort((a, b) => a.n - b.n);
 }
 
 /** Collapse many identical flag codes on one file into one line so the list stays readable. */

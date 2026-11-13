@@ -102,6 +102,18 @@ On each student's page:
 <sub>A student who did their own work: 100% written in Lineage over three sessions and six days, no flags. If anyone ever questions their work, this is their answer.</sub>
 </div>
 
+## Citing outside code
+
+Plenty of courses now allow ChatGPT or Stack Overflow as long as students cite what they used. Lineage helps with that part. After a paste from outside the project, a small notification in the corner asks where it came from. The student pastes a link (a ChatGPT or Claude share link, a Stack Overflow question, a GitHub file) or just picks the tool, and Lineage:
+
+- adds an IEEE reference to `REFERENCES.md`, reusing the number if the same source was cited before
+- puts a comment above the pasted code, like `# Source: [1] OpenAI, "ChatGPT," Accessed: Nov. 12, 2026. [Online]. Available: https://chatgpt.com/share/…`
+- tells the instructor which pastes were cited and which weren't
+
+Typed code can be cited too, with **Lineage: Cite Selection**. Links are recognized from the URL itself, so nothing gets fetched. On the dashboard, cited pastes show up in blue and are listed under **Sources cited**. A student whose outside code is all cited stays out of the review queue. Instructors can turn the prompt off with `"citations": { "prompt": false }` in `.lineage.json`.
+
+The source is whatever the student says it is, so a student could name the wrong one. The pasted text is still in the replay if you want to check.
+
 ## How it works
 
 ```mermaid
@@ -132,7 +144,7 @@ flowchart LR
 | An agent (Claude Code, Codex, Aider, …) edits the project files | ✅ **Caught.** The code shows up as *written to disk by another program*. |
 | An agent is started from Lineage's terminal | ✅ **Caught.** Logged along with how long it ran. |
 | An agent has a history folder for this project | ✅ **Caught.** Lineage checks the one exact path and doesn't open it. |
-| Code pasted from ChatGPT, a website, or a friend | ✅ **Caught.** Logged as *pasted from outside*, with the exact text. |
+| Code pasted from ChatGPT, a website, or a friend | ✅ **Caught.** Logged as *pasted from outside*, with the exact text. If the student cites it, it's marked as cited. |
 | Files changed while Lineage was closed | ✅ **Caught.** Logged as *not recorded*. |
 | The assignment was done before joining, then opened in Lineage | ✅ **Caught.** Anything that isn't in the instructor's starter code gets flagged as *written before joining*. |
 | The student edits or deletes part of their recording | ✅ **Caught.** The hash chain breaks, or an alert says how many events are missing. |
@@ -224,6 +236,7 @@ cd lineage/server && npm test
 - [x] Agent detection that stays inside the editor
 - [x] Starter-code snapshots, so work done before joining gets flagged
 - [x] Recorder built into the Lineage app (can't be uninstalled)
+- [x] Citing pasted code (IEEE), with cited and uncited pastes shown separately
 - [ ] Block AI extensions and built-in chat in the build (extension allowlist)
 - [ ] Check the graded git commit against the recording
 - [ ] HTTPS, instructor accounts, hosted deployment

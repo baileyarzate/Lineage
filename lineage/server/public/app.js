@@ -7,16 +7,17 @@ import { SOURCES, AUTHORED, CONTENT_KINDS, applyEvent, cloneState, createState, 
 const LABEL = {
 	typed: 'Typed', editor: 'Editor assist', paste_internal: 'Internal paste', starter: 'Starter code',
 	paste_external: 'External paste', external_write: 'Written by another program', programmatic: 'No user input',
-	unobserved: 'Not recorded', delete: 'Deleted',
+	unobserved: 'Not recorded', delete: 'Deleted', paste_cited: 'Cited paste', citation: 'Citation (added by Lineage)',
 };
 const KIND_LABEL = {
 	typed: 'typed', delete: 'deleted', paste_internal: 'pasted (internal)', paste_external: 'pasted from outside',
 	edit_other: 'editor assist', undo_redo: 'undo / redo', programmatic: 'edit with no user input',
 	external_write: 'written by another program', baseline: 'file state at session start', rename: 'renamed',
+	citation: 'citation comment added by Lineage', citation_file: 'REFERENCES.md updated by Lineage',
 };
 /** Draw order, bottom to top, so suspicious sources sit on top of timeline columns. */
-const STACK = ['typed', 'editor', 'paste_internal', 'delete', 'starter', 'unobserved', 'programmatic', 'paste_external', 'external_write'];
-const SEVERITY = ['external_write', 'paste_external', 'programmatic', 'unobserved'];
+const STACK = ['typed', 'editor', 'paste_internal', 'delete', 'starter', 'citation', 'paste_cited', 'unobserved', 'programmatic', 'paste_external', 'external_write'];
+const SEVERITY = ['external_write', 'paste_external', 'programmatic', 'unobserved', 'paste_cited'];
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -39,7 +40,7 @@ function dueLabel(dueAt) {
 }
 
 function bar(counts) {
-	const keys = SOURCES.filter((s) => s !== 'starter');
+	const keys = SOURCES.filter((s) => s !== 'starter' && s !== 'citation');
 	const total = keys.reduce((a, s) => a + (counts?.[s] ?? 0), 0);
 	if (!total) return '<div class="bar"></div>';
 	return `<div class="bar">${keys.map((s) => counts[s] ? `<div style="width:${(100 * counts[s]) / total}%;background:var(--${s})" title="${LABEL[s]}: ${num(counts[s])}"></div>` : '').join('')}</div>`;
@@ -285,7 +286,7 @@ async function assignmentView(el, aid, alive) {
 				</tr></thead>
 				<tbody></tbody>
 			</table></div>
-			<p class="meta" style="margin-top:10px">“Needs review” means any alert, or under 70% of the student's code written in Lineage. Clearing a student removes them from the queue.</p>
+			<p class="meta" style="margin-top:10px">“Needs review” means any alert, or under 70% of the student's code either written in Lineage or pasted with a citation. Clearing a student removes them from the queue.</p>
 		</div>`;
 
 	const rows = () => {
@@ -311,7 +312,7 @@ async function assignmentView(el, aid, alive) {
 		$('tbody', el).innerHTML = list.length ? list.map((s) => `
 			<tr data-id="${esc(s.studentId)}" tabindex="0">
 				<td><b>${esc(s.studentId)}</b></td>
-				<td><div class="pctcell"><span class="pct ${s.summary.written && s.summary.authoredPct < 70 ? 'low' : ''}">${s.summary.written ? s.summary.authoredPct + '%' : '–'}</span>${bar(s.summary.counts)}</div></td>
+				<td><div class="pctcell"><span class="pct ${s.summary.written && (s.summary.accountedPct ?? s.summary.authoredPct) < 70 ? 'low' : ''}">${s.summary.written ? s.summary.authoredPct + '%' : '–'}</span>${bar(s.summary.counts)}${s.summary.citedPct ? `<span class="meta" title="Pasted from outside with a citation">+${s.summary.citedPct}% cited</span>` : ''}</div></td>
 				<td>${s.alerts ? `<span class="badge alert" title="alerts">${s.alerts}</span> ` : ''}${s.warnings ? `<span class="badge warn" title="warnings">${s.warnings}</span>` : ''}${!s.alerts && !s.warnings ? '<span class="meta">–</span>' : ''}</td>
 				<td class="num">${s.sessions}</td>
 				<td class="num">${fmtMinutes(s.activeMinutes)}</td>
@@ -375,6 +376,22 @@ async function readStarterFolder(list) {
 	return files;
 }
 
+/** The student's cited sources (from REFERENCES.md), each with where it was used. Sources are as given by the student. */
+function citationsPanel(report) {
+	const list = report.citations ?? [];
+	if (!list.length) return '';
+	const link = (u) => /^https?:\/\//.test(u ?? '') ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">open</a>` : '';
+	return `
+		<div class="panel sources">
+			<h3>Sources cited (${list.length})</h3>
+			<ol>${list.map((c) => `
+				<li><span class="ref">${esc(c.ref)}</span>
+					<span class="meta">${c.uses.map((u) => `${esc(u.file)}${u.forPaste ? '' : ' (selection)'}`).join(', ')}${c.source?.url ? ' · ' + link(c.source.url) : ''}</span></li>`).join('')}
+			</ol>
+			<p class="meta" style="margin:8px 0 0">Sources are as the student gave them. The pasted text itself is in the replay.</p>
+		</div>`;
+}
+
 function reviewPill(review) {
 	if (review?.status === 'cleared') return '<span class="pill ok">Cleared</span>';
 	if (review?.status === 'follow_up') return '<span class="pill warn">Follow-up</span>';
@@ -426,15 +443,16 @@ async function studentView(el, r, alive) {
 			<div class="summary">
 				<div class="panel">
 					<div class="cards">
-						<div class="stat"><div class="v big ${s.written && s.authoredPct < 70 ? 'bad' : ''}">${s.written ? s.authoredPct + '%' : '–'}</div><div class="k">written in Lineage</div></div>
+						<div class="stat"><div class="v big ${s.written && (s.accountedPct ?? s.authoredPct) < 70 ? 'bad' : ''}">${s.written ? s.authoredPct + '%' : '–'}</div><div class="k">written in Lineage</div></div>
 						<div class="stat"><div class="v">${num(authored)}</div><div class="k">authored chars</div></div>
-						<div class="stat"><div class="v">${num(s.written - authored)}</div><div class="k">unattributed chars</div></div>
+						${s.counts.paste_cited ? `<div class="stat"><div class="v">${s.citedPct}%</div><div class="k">pasted with a citation</div></div>` : ''}
+						<div class="stat"><div class="v">${num(s.written - authored - (s.counts.paste_cited ?? 0))}</div><div class="k">unattributed chars</div></div>
 						<div class="stat"><div class="v">${fmtMinutes(report.activeMinutes)}</div><div class="k">active · ${report.sessions} session${report.sessions === 1 ? '' : 's'}</div></div>
 						<div class="stat"><div class="v ${report.chainOk ? '' : 'bad'}">${report.chainOk ? 'Intact' : 'Broken'}</div><div class="k">hash chain</div></div>
 					</div>
 					${bar(s.counts)}
 					<div class="legend">${SOURCES.filter((k) => s.counts[k]).map((k) => `<span><i style="background:var(--${k})"></i>${LABEL[k]} <b>${num(s.counts[k])}</b></span>`).join('')}</div>
-					<div class="meta">${report.submittedAt ? `Submitted ${fmtDateTime(report.submittedAt)}.` : 'Not submitted yet.'} Counts exclude whitespace. Evidence for review, not a verdict.</div>
+					<div class="meta">${report.submittedAt ? `Submitted ${fmtDateTime(report.submittedAt)}.` : 'Not submitted yet.'} Counts exclude whitespace and Lineage's own citation text.</div>
 				</div>
 				<div class="panel">
 					<h3>Flags (${report.flags.length})</h3>
@@ -450,6 +468,7 @@ async function studentView(el, r, alive) {
 					<div class="meta review-saved"></div>
 				</div>
 			</div>
+			${citationsPanel(report)}
 			<div id="player"></div>
 			<div class="hints">
 				<span><kbd>←</kbd> <kbd>→</kbd> step one change</span><span><kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd> step 10</span>
@@ -542,13 +561,13 @@ class Player {
 			let w;
 			if (typeof ev.off === 'number') w = (ev.text?.length ?? 0) || ev.del || 0;
 			else { const [a, b] = changedRange(before, after); w = Math.max(b - a, before.length - after.length, 0); }
-			this.weights[i] = this.sources[i] === 'starter' ? 0 : w;
-			if (this.sources[i] !== 'starter' && w > 0) edits.set(ev.file, (edits.get(ev.file) ?? 0) + 1);
+			this.weights[i] = this.sources[i] === 'starter' || this.sources[i] === 'citation' ? 0 : w;
+			if (this.sources[i] !== 'starter' && this.sources[i] !== 'citation' && w > 0) edits.set(ev.file, (edits.get(ev.file) ?? 0) + 1);
 		});
 		this.checkpoints.push(cloneState(state));
 		this.notable = this.frames.map((_, i) => {
 			const s = this.sources[i];
-			return (s === 'external_write' && this.weights[i] > 0) || ((s === 'paste_external' || s === 'programmatic' || s === 'unobserved') && this.weights[i] >= 20);
+			return (s === 'external_write' && this.weights[i] > 0) || ((s === 'paste_external' || s === 'paste_cited' || s === 'programmatic' || s === 'unobserved') && this.weights[i] >= 20);
 		});
 		this.sessionStarts = this.frames.map((e, i) => i === 0 || e.session !== this.frames[i - 1].session);
 		// Agent runs as frame ranges (an agent that changed nothing still gets a sliver at its position).
@@ -566,13 +585,13 @@ class Player {
 		this.fileInfo = new Map([...paths].sort().map((p) => {
 			const f = state.files.get(p);
 			const counts = f ? fileCounts(f) : Object.fromEntries(SOURCES.map((s) => [s, 0]));
-			const written = SOURCES.reduce((n, s) => n + (s === 'starter' ? 0 : counts[s]), 0);
+			const written = SOURCES.reduce((n, s) => n + (s === 'starter' || s === 'citation' ? 0 : counts[s]), 0);
 			return [p, {
 				path: p, counts, written,
 				worst: SEVERITY.find((s) => counts[s] > 0) ?? null,
 				exists: !!f,
 				changed: (edits.get(p) ?? 0) > 0,
-				flags: this.flags.filter((fl) => fl.file === p),
+				flags: this.flags.filter((fl) => fl.file === p && fl.level !== 'info'), // info (e.g. a cited paste) isn't a problem to badge
 			}];
 		}));
 		// Start with folders that contain no changed files collapsed.
@@ -861,7 +880,7 @@ class Player {
 			const w = this.weights[n - 1];
 			const size = ev.kind === 'delete' ? `−${ev.del} chars` : w ? `${num(w)} char${w === 1 ? '' : 's'}` : '';
 			this.el.event.innerHTML = `
-				<span class="chip" style="--c:${srcColor(src)}">${esc(KIND_LABEL[ev.kind] ?? ev.kind)}</span>
+				<span class="chip ${src === 'citation' || src === 'starter' ? 'light' : ''}" style="--c:${srcColor(src)}">${esc(KIND_LABEL[ev.kind] ?? ev.kind)}</span>
 				<b>${esc(changedFile ?? '')}</b>
 				${size ? `<span class="meta">${size}</span>` : ''}
 				<span class="meta">${fmtTimeSec(ev.t)}${p && p.session === ev.session ? ` · ${fmtGap(ev.t - p.t)}` : ` · start of session ${ev.session}`}</span>
@@ -1096,7 +1115,7 @@ function compact(n) {
 }
 
 function miniBar(counts) {
-	const keys = SOURCES.filter((s) => s !== 'starter');
+	const keys = SOURCES.filter((s) => s !== 'starter' && s !== 'citation');
 	const total = keys.reduce((a, s) => a + counts[s], 0) || 1;
 	return keys.map((s) => counts[s] ? `<div style="width:${(100 * counts[s]) / total}%;background:var(--${s})"></div>` : '').join('');
 }

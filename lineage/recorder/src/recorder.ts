@@ -9,6 +9,9 @@
 //   programmatic    edit to an open document with no user input nearby (another extension)
 //   external_write  file changed on disk by another program (agents, scripts, other editors)
 //   baseline        file contents when the session starts
+//   citation        a citation comment Lineage inserted because the student cited a paste
+//   citation_file   REFERENCES.md, written by Lineage when the student cites a source
+//   cite            the student named a source for a paste or a selection
 //
 // The recorder keeps a shadow copy of every tracked file, so it can tell its own
 // saves apart from writes by other programs.
@@ -25,6 +28,16 @@ const MAX_FILES = 2000;
 const TYPE_WINDOW_MS = 200; // change must arrive this soon after a keystroke to count as typed
 const ACTIVITY_WINDOW_MS = 1500; // editor-made edits shortly after user input
 const PASTE_WINDOW_MS = 1500;
+const CITE_MIN_CHARS = 30; // non-whitespace: about one line of code
+
+/** An outside paste worth asking about. */
+export interface ExternalPaste {
+	uri: vscode.Uri;
+	file: string;
+	seq: number; // the paste event, so a later citation can point at it
+	off: number;
+	text: string;
+}
 
 const hash = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex');
 const normalize = (s: string) => s.replace(/\r\n/g, '\n');
@@ -40,6 +53,10 @@ export class Recorder implements vscode.Disposable {
 	private pendingPaste: { text: string; internal: boolean; at: number } | undefined;
 	private copied = new Set<string>(); // hashes of text copied inside the editor
 	private queue: Promise<void> = Promise.resolve();
+	private expected: { file: string; text: string }[] = []; // citation comments Lineage is about to insert
+
+	/** Called after an outside paste of at least a line of code is recorded. */
+	onExternalPaste?: (paste: ExternalPaste) => void;
 
 	constructor(root: vscode.Uri, transport: Transport) {
 		this.root = root;
@@ -201,7 +218,10 @@ export class Recorder implements vscode.Disposable {
 		// Capture everything now; the document and input state move on while we wait.
 		const now = Date.now();
 		const after = e.document.getText();
-		const changes = e.contentChanges.map((c) => ({ text: c.text, off: c.rangeOffset, del: c.rangeLength, kind: this.classify(c.text, e.reason, now) }));
+		const changes = e.contentChanges.map((c) => ({
+			text: c.text, off: c.rangeOffset, del: c.rangeLength,
+			kind: this.takeExpected(rel, c.text) ? 'citation' : this.classify(c.text, e.reason, now),
+		}));
 		// The document looks unmodified after the change. VS Code updates the "unsaved" state a moment after
 		// the edit, so this is either the first edit after a save, or a reload because another program
 		// rewrote the file. Only the disk can tell: a reload matches it, a fresh edit doesn't.
@@ -215,9 +235,62 @@ export class Recorder implements vscode.Disposable {
 				this.shadow.set(rel, after);
 				return;
 			}
-			for (const c of changes) this.transport.record({ kind: c.kind, file: rel, off: c.off, del: c.del, text: c.text });
+			for (const c of changes) {
+				const seq = this.transport.record({ kind: c.kind, file: rel, off: c.off, del: c.del, text: c.text });
+				if (c.kind === 'paste_external' && c.text.replace(/\s/g, '').length >= CITE_MIN_CHARS) {
+					this.onExternalPaste?.({ uri, file: rel, seq, off: c.off, text: c.text });
+				}
+			}
 			this.shadow.set(rel, after);
 		});
+	}
+
+	// ---- citations -----------------------------------------------------------
+
+	/** The next edit inserting exactly `text` into `file` is Lineage's own citation comment. */
+	expectCitation(file: string, text: string) {
+		this.expected.push({ file, text });
+		setTimeout(() => {
+			const i = this.expected.findIndex((x) => x.file === file && x.text === text);
+			if (i >= 0) this.expected.splice(i, 1);
+		}, 5000);
+	}
+
+	private takeExpected(file: string, text: string): boolean {
+		const i = this.expected.findIndex((x) => x.file === file && x.text === text);
+		if (i < 0) return false;
+		this.expected.splice(i, 1);
+		return true;
+	}
+
+	/** Record that the student named a source. */
+	recordCite(fields: { file: string; paste?: number; n: number; ref: string; source: object; off?: number; len?: number }) {
+		this.serial(() => { this.transport.record({ kind: 'cite', ...fields }); });
+	}
+
+	/** Write a file Lineage generates (REFERENCES.md), recorded so the replay and the submission stay in sync. */
+	writeGenerated(file: string, text: string): Promise<void> {
+		return new Promise((resolve, reject) => this.serial(async () => {
+			try {
+				this.shadow.set(file, text); // so the watcher sees it as already known
+				this.transport.record({ kind: 'citation_file', file, text });
+				await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(this.root, ...file.split('/')), Buffer.from(text, 'utf8'));
+				resolve();
+			} catch (err) {
+				reject(err);
+			}
+		}));
+	}
+
+	/** Current text of a tracked file (editor copy if open), or undefined. */
+	async currentText(file: string): Promise<string | undefined> {
+		const uri = vscode.Uri.joinPath(this.root, ...file.split('/'));
+		const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
+		return open ? open.getText() : readText(uri);
+	}
+
+	relPath(uri: vscode.Uri) {
+		return this.rel(uri);
 	}
 
 	private classify(text: string, reason: vscode.TextDocumentChangeReason | undefined, now: number): string {
